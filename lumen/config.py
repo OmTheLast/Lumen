@@ -16,4 +16,7 @@ class Config:
     screenshot_dir: str = os.path.expanduser(
         os.getenv("LUMEN_SCREENSHOT_DIR", "~/Documents/lumen/screenshots")
     )
-
+    ui_enabled: bool = os.getenv("LUMEN_UI_ENABLED", "1") != "0"
+    ui_host: str = os.getenv("LUMEN_UI_HOST", "127.0.0.1")
+    ui_port: int = int(os.getenv("LUMEN_UI_PORT", "8765"))
+    ui_open_browser: bool = os.getenv("LUMEN_UI_OPEN_BROWSER", "1") != "0"

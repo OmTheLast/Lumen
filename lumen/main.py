@@ -9,6 +9,8 @@ from lumen.agent.planner import Planner
 from lumen.config import Config
 from lumen.llm.ollama_client import OllamaClient
 from lumen.tools import TOOLS
+from lumen.ui.server import PresenceServer
+from lumen.ui.state import PresenceState
 from lumen.voice.recorder import VoiceDependencyError, record_wav
 from lumen.voice.stt import MlxWhisperTranscriber, SpeechToTextError
 from lumen.voice.tts import speak
@@ -18,11 +20,15 @@ def main() -> int:
     config = Config()
     planner = Planner(config, OllamaClient(config.ollama_url))
     executor = Executor()
+    presence = PresenceState()
+    ui_server = _start_presence_ui(config, presence)
 
     print("Lumen v3 initialized")
     print(f"Planner: {config.planner_model}")
     print(f"Router:  {config.router_model}")
     print(f"Ollama:  {config.ollama_url}")
+    if ui_server is not None:
+        print(f"UI:      {ui_server.url}")
     print("Tools:   " + ", ".join(sorted(TOOLS)))
     print("Type 'quit' or 'exit' to stop.")
     print("Type '/voice 5' to record a 5 second voice command.")
@@ -33,8 +39,10 @@ def main() -> int:
             user_input = input("You: ").strip()
         except KeyboardInterrupt:
             print("\nShutting down Lumen.")
+            presence.update("idle", "Lumen is shutting down.", detail="Terminal interrupted.")
             return 0
         except EOFError:
+            presence.update("idle", "Lumen is shutting down.", detail="Terminal input closed.")
             print()
             return 0
 
@@ -42,53 +50,145 @@ def main() -> int:
             continue
         if user_input.lower() in {"quit", "exit"}:
             print("Shutting down Lumen.")
+            presence.update("idle", "Lumen is shutting down.", detail="Goodbye.")
             return 0
 
         if user_input.startswith("/voice"):
-            response = handle_voice_command(user_input, planner, executor)
+            response = handle_voice_command(user_input, planner, executor, presence)
             if response:
-                speak(response)
+                _speak_with_presence(response, presence)
             continue
 
-        process_command(user_input, planner, executor)
+        process_command(user_input, planner, executor, presence)
 
 
-def process_command(user_input: str, planner: Planner, executor: Executor) -> str:
+def process_command(
+    user_input: str,
+    planner: Planner,
+    executor: Executor,
+    presence: PresenceState | None = None,
+) -> str:
+    _presence_update(
+        presence,
+        "thinking",
+        "Thinking through the request.",
+        detail=user_input,
+        transcript=user_input,
+    )
     plan = planner.plan(user_input)
     spoken_parts: list[str] = []
     if plan.response:
         print(f"Lumen: {plan.response}")
+        _presence_update(presence, "speaking", plan.response, detail="Drafting a response.")
         spoken_parts.append(plan.response)
 
     observations: list[str] = []
     for action in plan.actions:
         print(f"Action: {action.tool} {action.args}")
+        _presence_update(
+            presence,
+            "acting",
+            f"Using {action.tool}.",
+            detail=action.reason or "Running a tool.",
+        )
         result = executor.execute(action)
         status = "OK" if result.ok else "ERR"
         print(f"{status}: {result.observation}")
+        _presence_update(
+            presence,
+            "thinking" if result.ok else "error",
+            result.observation,
+            detail="Tool observation received.",
+        )
         planner.observe(action, result)
         observations.append(result.observation)
 
+    if observations:
+        _presence_update(presence, "thinking", "Reviewing the result.", detail=observations[-1])
     final = planner.final_response(user_input, observations)
     if final and final != (plan.response or ""):
         print(f"Lumen: {final}")
+        _presence_update(presence, "speaking", final, detail="Responding.")
         spoken_parts.append(final)
 
-    return " ".join(spoken_parts).strip()
+    spoken = " ".join(spoken_parts).strip()
+    _presence_update(
+        presence,
+        "idle",
+        spoken or "Done.",
+        detail="Waiting for the next command.",
+    )
+    return spoken
 
 
-def handle_voice_command(command: str, planner: Planner, executor: Executor) -> str:
+def handle_voice_command(
+    command: str,
+    planner: Planner,
+    executor: Executor,
+    presence: PresenceState | None = None,
+) -> str:
     seconds = _parse_voice_seconds(command)
     try:
+        _presence_update(
+            presence,
+            "listening",
+            "Listening.",
+            detail=f"Recording {seconds:g} seconds of audio.",
+        )
         audio_path = record_wav(seconds)
+        _presence_update(
+            presence,
+            "thinking",
+            "Transcribing your voice.",
+            detail="Running local speech-to-text.",
+        )
         transcription = MlxWhisperTranscriber().transcribe(audio_path)
     except (ValueError, VoiceDependencyError, SpeechToTextError) as exc:
         message = str(exc)
         print(f"Voice error: {message}")
+        _presence_update(presence, "error", "Voice command failed.", detail=message)
         return message
 
     print(f"You said: {transcription.text}")
-    return process_command(transcription.text, planner, executor)
+    _presence_update(
+        presence,
+        "thinking",
+        "Heard you.",
+        detail=transcription.text,
+        transcript=transcription.text,
+    )
+    return process_command(transcription.text, planner, executor, presence)
+
+
+def _start_presence_ui(config: Config, presence: PresenceState) -> PresenceServer | None:
+    if not config.ui_enabled:
+        return None
+
+    server = PresenceServer(presence, host=config.ui_host, port=config.ui_port)
+    try:
+        server.start(open_browser=config.ui_open_browser)
+    except RuntimeError as exc:
+        print(f"UI unavailable: {exc}")
+        return None
+    return server
+
+
+def _presence_update(
+    presence: PresenceState | None,
+    state: str,
+    message: str,
+    *,
+    detail: str = "",
+    transcript: str | None = None,
+) -> None:
+    if presence is not None:
+        presence.update(state, message, detail=detail, transcript=transcript)
+
+
+def _speak_with_presence(text: str, presence: PresenceState | None) -> None:
+    _presence_update(presence, "speaking", text, detail="Speaking out loud.")
+    speak(text)
+    _presence_update(presence, "idle", "Done speaking.", detail="Waiting for the next command.")
 
 
 def _parse_voice_seconds(command: str) -> float:

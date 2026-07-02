@@ -25,6 +25,20 @@ cd /Users/ompatnaik/Documents/Code/Lumen
 uv run python -m lumen.main
 ```
 
+Lumen starts a local presence page at `http://127.0.0.1:8765` and opens it in your browser. The page shows Lumen's current state and a bottom-right icon that animates while it listens, thinks, acts, or speaks.
+
+To run without opening the browser:
+
+```sh
+LUMEN_UI_OPEN_BROWSER=0 uv run python -m lumen.main
+```
+
+To disable the UI entirely:
+
+```sh
+LUMEN_UI_ENABLED=0 uv run python -m lumen.main
+```
+
 Try:
 
 ```text
