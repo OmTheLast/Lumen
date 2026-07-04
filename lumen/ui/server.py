@@ -101,21 +101,43 @@ INDEX_HTML = """<!doctype html>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main class="shell">
-    <section class="hero">
-      <div class="mark" aria-hidden="true">
-        <span class="core"></span>
-        <span class="ring ring-a"></span>
-        <span class="ring ring-b"></span>
+  <main class="console">
+    <section class="framework" aria-label="Lumen status framework">
+      <div class="hud hud-top"></div>
+      <div class="hud hud-right"></div>
+      <div class="hud hud-bottom"></div>
+      <div class="scope" aria-hidden="true">
+        <div class="sphere">
+          <span class="axis axis-a"></span>
+          <span class="axis axis-b"></span>
+          <span class="axis axis-c"></span>
+          <span class="arc arc-a"></span>
+          <span class="arc arc-b"></span>
+          <span class="arc arc-c"></span>
+          <span class="spark spark-a"></span>
+          <span class="spark spark-b"></span>
+          <span class="spark spark-c"></span>
+          <span class="nucleus"></span>
+        </div>
       </div>
-      <p class="eyebrow">Local desktop agent</p>
-      <h1>Lumen</h1>
-      <p id="message" class="message">Lumen is awake.</p>
-      <p id="detail" class="detail">Waiting for a command.</p>
-    </section>
-    <section class="transcript-wrap">
-      <p class="label">Last heard</p>
-      <p id="transcript" class="transcript">Nothing yet.</p>
+      <div class="readout readout-left">
+        <span>local agent</span>
+        <strong>Lumen</strong>
+      </div>
+      <div class="readout readout-right">
+        <span>state</span>
+        <strong id="stateReadout">Idle</strong>
+      </div>
+      <div class="status-panel">
+        <p class="eyebrow">local desktop agent</p>
+        <h1>Lumen</h1>
+        <p id="message" class="message">Lumen is awake.</p>
+        <p id="detail" class="detail">Waiting for a command.</p>
+      </div>
+      <div class="transcript-panel">
+        <p class="label">last heard</p>
+        <p id="transcript" class="transcript">Nothing yet.</p>
+      </div>
     </section>
   </main>
   <aside id="presence" class="presence idle" aria-live="polite">
@@ -135,14 +157,15 @@ INDEX_HTML = """<!doctype html>
 
 STYLES_CSS = """:root {
   color-scheme: dark;
-  --bg: #0a0c10;
-  --text: #f4f6f8;
-  --muted: #9aa4af;
-  --line: rgba(255, 255, 255, 0.12);
-  --cyan: #55d6ff;
-  --green: #6ee7a7;
-  --gold: #ffd166;
-  --rose: #ff7a90;
+  --bg: #050403;
+  --text: #fff2df;
+  --muted: #b99470;
+  --line: rgba(255, 148, 58, 0.24);
+  --orange: #ff8f2d;
+  --amber: #ffc35b;
+  --ember: #ff5d1f;
+  --deep: #120905;
+  --red: #ff665f;
 }
 
 * { box-sizing: border-box; }
@@ -152,127 +175,305 @@ body {
   min-height: 100vh;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 12% 18%, rgba(85, 214, 255, 0.16), transparent 28%),
-    radial-gradient(circle at 82% 24%, rgba(110, 231, 167, 0.12), transparent 24%),
-    linear-gradient(145deg, #090b0f 0%, #10141b 54%, #090b0f 100%);
+    radial-gradient(circle at 50% 47%, rgba(255, 149, 42, 0.16), transparent 32%),
+    linear-gradient(90deg, rgba(255, 139, 36, 0.06) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 139, 36, 0.05) 1px, transparent 1px),
+    linear-gradient(145deg, #030201 0%, #0d0704 52%, #030201 100%);
+  background-size: auto, 58px 58px, 58px 58px, auto;
   color: var(--text);
   overflow: hidden;
 }
 
-.shell {
-  width: min(980px, calc(100vw - 48px));
+.console {
   min-height: 100vh;
-  margin: 0 auto;
   display: grid;
-  align-content: center;
-  gap: 32px;
+  place-items: center;
+  padding: 34px;
 }
 
-.hero { max-width: 720px; }
-
-.mark {
+.framework {
   position: relative;
-  width: 104px;
-  height: 104px;
-  margin-bottom: 28px;
+  width: min(900px, calc(100vw - 48px));
+  aspect-ratio: 1 / 0.78;
+  min-height: 540px;
+  border: 1px solid rgba(255, 143, 45, 0.28);
+  background:
+    linear-gradient(90deg, transparent 0 7%, rgba(255, 143, 45, 0.08) 7% 7.25%, transparent 7.25% 92.75%, rgba(255, 143, 45, 0.08) 92.75% 93%, transparent 93%),
+    linear-gradient(0deg, transparent 0 10%, rgba(255, 143, 45, 0.08) 10% 10.35%, transparent 10.35% 89.65%, rgba(255, 143, 45, 0.08) 89.65% 90%, transparent 90%),
+    radial-gradient(circle at 50% 47%, rgba(255, 139, 36, 0.12), rgba(8, 4, 2, 0.92) 54%, rgba(3, 2, 1, 0.96));
+  box-shadow: inset 0 0 80px rgba(255, 94, 24, 0.08), 0 24px 80px rgba(0, 0, 0, 0.46);
+  overflow: hidden;
 }
 
-.core, .ring {
+.framework::before,
+.framework::after {
+  content: "";
   position: absolute;
+  pointer-events: none;
+}
+
+.framework::before {
   inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 172, 83, 0.06) 0 1px,
+    transparent 1px 5px
+  );
+  mix-blend-mode: screen;
+  opacity: 0.32;
+  animation: scanlines 7s linear infinite;
+}
+
+.framework::after {
+  inset: 18px;
+  border: 1px solid rgba(255, 143, 45, 0.18);
+  clip-path: polygon(0 0, 34% 0, 34% 2px, 66% 2px, 66% 0, 100% 0, 100% 100%, 70% 100%, 70% calc(100% - 2px), 30% calc(100% - 2px), 30% 100%, 0 100%);
+}
+
+.hud {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, rgba(255, 166, 66, 0.86), transparent);
+  opacity: 0.72;
+}
+
+.hud-top {
+  top: 38px;
+  left: 48px;
+  width: 58%;
+  height: 3px;
+  animation: hudShift 5s ease-in-out infinite;
+}
+
+.hud-right {
+  top: 92px;
+  right: 36px;
+  width: 3px;
+  height: 58%;
+  background: linear-gradient(0deg, transparent, rgba(255, 166, 66, 0.86), transparent);
+  animation: hudShiftVertical 4.5s ease-in-out infinite;
+}
+
+.hud-bottom {
+  bottom: 42px;
+  right: 72px;
+  width: 48%;
+  height: 3px;
+  animation: hudShift 6.5s ease-in-out infinite reverse;
+}
+
+.scope {
+  position: absolute;
+  inset: 70px 78px 92px;
+  display: grid;
+  place-items: center;
+}
+
+.sphere {
+  position: relative;
+  width: min(470px, 58vw);
+  aspect-ratio: 1;
   border-radius: 50%;
+  border: 1px solid rgba(255, 164, 64, 0.32);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 194, 88, 0.22), transparent 9%),
+    radial-gradient(circle at 44% 48%, rgba(255, 112, 29, 0.24), transparent 28%),
+    radial-gradient(circle, transparent 54%, rgba(255, 131, 35, 0.13) 55%, transparent 71%);
+  box-shadow: inset 0 0 64px rgba(255, 102, 25, 0.18), 0 0 74px rgba(255, 115, 24, 0.22);
+  animation: spherePulse 4.4s ease-in-out infinite;
 }
 
-.core {
-  inset: 28px;
-  background: radial-gradient(circle at 34% 30%, #fff, var(--cyan) 38%, #146a82 100%);
-  box-shadow: 0 0 34px rgba(85, 214, 255, 0.72);
+.sphere::before,
+.sphere::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 181, 78, 0.22);
 }
 
-.ring {
-  border: 1px solid rgba(85, 214, 255, 0.32);
-  animation: breathe 4s ease-in-out infinite;
+.sphere::before {
+  transform: rotateX(68deg);
+  animation: rotateSlow 9s linear infinite;
 }
 
-.ring-b {
-  inset: 13px;
-  border-color: rgba(110, 231, 167, 0.34);
-  animation-delay: -1.5s;
+.sphere::after {
+  inset: 17%;
+  transform: rotateY(66deg);
+  animation: rotateSlow 7s linear infinite reverse;
+}
+
+.axis,
+.arc,
+.spark,
+.nucleus {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.axis {
+  left: 12%;
+  right: 12%;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 185, 81, 0.88), transparent);
+  transform-origin: center;
+}
+
+.axis-a { transform: rotate(12deg); }
+.axis-b { transform: rotate(58deg); opacity: 0.62; }
+.axis-c { transform: rotate(-34deg); opacity: 0.46; }
+
+.arc {
+  inset: 10%;
+  border: 1px solid transparent;
+  border-top-color: rgba(255, 205, 96, 0.9);
+  border-right-color: rgba(255, 108, 26, 0.42);
+  animation: orbit 6.6s linear infinite;
+}
+
+.arc-b {
+  inset: 19%;
+  border-top-color: rgba(255, 133, 33, 0.8);
+  animation-duration: 4.9s;
+  animation-direction: reverse;
+}
+
+.arc-c {
+  inset: 31%;
+  border-top-color: rgba(255, 235, 154, 0.72);
+  animation-duration: 3.7s;
+}
+
+.spark {
+  width: 6px;
+  height: 6px;
+  background: #ffd27c;
+  box-shadow: 0 0 18px rgba(255, 183, 77, 0.95), 0 0 38px rgba(255, 92, 24, 0.62);
+}
+
+.spark-a { left: 73%; top: 32%; animation: sparkDrift 5s ease-in-out infinite; }
+.spark-b { left: 29%; top: 67%; animation: sparkDrift 6s ease-in-out infinite reverse; }
+.spark-c { left: 52%; top: 18%; animation: sparkDrift 4.2s ease-in-out infinite; }
+
+.nucleus {
+  inset: 43%;
+  background: radial-gradient(circle, #fff8cc 0 10%, #ffc35b 35%, #ff6d1d 72%, transparent 73%);
+  box-shadow: 0 0 36px rgba(255, 202, 87, 0.95), 0 0 92px rgba(255, 89, 21, 0.74);
+  animation: nucleus 1.9s ease-in-out infinite;
+}
+
+.readout {
+  position: absolute;
+  padding: 10px 12px;
+  border-left: 2px solid rgba(255, 159, 55, 0.7);
+  background: rgba(18, 8, 2, 0.46);
+}
+
+.readout span,
+.label,
+.eyebrow {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.readout strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--amber);
+  font-size: 15px;
+}
+
+.readout-left { left: 48px; top: 64px; }
+.readout-right { right: 52px; bottom: 84px; text-align: right; border-left: 0; border-right: 2px solid rgba(255, 159, 55, 0.7); }
+
+.status-panel {
+  position: absolute;
+  left: 48px;
+  bottom: 88px;
+  width: min(360px, calc(100% - 96px));
+  z-index: 2;
 }
 
 .eyebrow {
-  color: var(--green);
   margin: 0 0 12px;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(68px, 12vw, 156px);
-  line-height: 0.88;
+  font-size: clamp(52px, 7vw, 96px);
+  line-height: 0.9;
   letter-spacing: 0;
+  text-shadow: 0 0 34px rgba(255, 128, 32, 0.42);
 }
 
 .message {
-  margin: 28px 0 0;
-  font-size: clamp(24px, 4vw, 44px);
-  line-height: 1.08;
+  margin: 22px 0 0;
+  color: #ffe1b5;
+  font-size: clamp(22px, 3vw, 32px);
+  line-height: 1.12;
 }
 
 .detail {
-  max-width: 680px;
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
-  font-size: 18px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
-.transcript-wrap {
-  width: min(680px, 100%);
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
+.transcript-panel {
+  position: absolute;
+  right: 48px;
+  top: 76px;
+  width: min(310px, calc(100% - 96px));
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 143, 45, 0.22);
+  background: rgba(10, 5, 2, 0.46);
+  box-shadow: inset 0 0 28px rgba(255, 110, 24, 0.08);
 }
 
 .label {
   margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0;
 }
 
 .transcript {
   margin: 0;
-  color: #d9e0e8;
-  font-size: 20px;
+  color: #ffd9a0;
+  font-size: 16px;
   line-height: 1.4;
 }
 
 .presence {
   position: fixed;
-  right: 22px;
-  bottom: 22px;
+  right: 18px;
+  bottom: 18px;
   display: grid;
-  grid-template-columns: 56px minmax(0, 118px);
+  grid-template-columns: 52px minmax(0, 116px);
   gap: 12px;
   align-items: center;
   padding: 12px 14px 12px 12px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(10, 14, 20, 0.76);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.36);
+  border: 1px solid rgba(255, 143, 45, 0.28);
+  border-radius: 12px;
+  background: rgba(12, 5, 2, 0.82);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.46), inset 0 0 28px rgba(255, 102, 24, 0.1);
   backdrop-filter: blur(18px);
+  z-index: 10;
 }
 
 .presence-orb {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 28%, #fff, var(--cyan) 42%, #153846 100%);
-  box-shadow: 0 0 24px rgba(85, 214, 255, 0.52);
+  border: 1px solid rgba(255, 199, 100, 0.52);
+  background:
+    radial-gradient(circle at 50% 50%, #fff5bf 0 6%, #ffb347 20%, transparent 21%),
+    conic-gradient(from 20deg, transparent, rgba(255, 164, 64, 0.9), transparent 44%, rgba(255, 98, 25, 0.76), transparent 78%);
+  box-shadow: 0 0 24px rgba(255, 128, 32, 0.62);
+  animation: orbit 5.5s linear infinite;
 }
 
 .presence-orb span {
@@ -282,7 +483,7 @@ h1 {
   width: 5px;
   height: 13px;
   border-radius: 99px;
-  background: rgba(8, 18, 24, 0.72);
+  background: rgba(20, 7, 2, 0.82);
   transform: translateX(-50%);
   animation: meter 1.2s ease-in-out infinite;
 }
@@ -310,15 +511,50 @@ h1 {
 }
 
 .presence.idle .presence-orb span { animation-play-state: paused; opacity: 0.44; }
-.presence.listening .presence-orb { box-shadow: 0 0 32px rgba(110, 231, 167, 0.7); }
-.presence.thinking .presence-orb { filter: hue-rotate(52deg); animation: tilt 1.8s ease-in-out infinite; }
-.presence.acting .presence-orb { filter: hue-rotate(120deg); }
+.presence.listening .presence-orb { box-shadow: 0 0 34px rgba(255, 196, 91, 0.82); }
+.presence.thinking .presence-orb { animation-duration: 2.4s; }
+.presence.acting .presence-orb { animation-duration: 1.1s; }
 .presence.speaking .presence-orb span { animation-duration: 0.55s; }
-.presence.error .presence-orb { filter: hue-rotate(180deg); box-shadow: 0 0 28px rgba(255, 122, 144, 0.72); }
+.presence.error .presence-orb { box-shadow: 0 0 28px rgba(255, 102, 95, 0.72); filter: saturate(1.5); }
 
-@keyframes breathe {
-  0%, 100% { transform: scale(0.92); opacity: 0.42; }
-  50% { transform: scale(1.08); opacity: 0.9; }
+@keyframes scanlines {
+  from { transform: translateY(-28px); }
+  to { transform: translateY(28px); }
+}
+
+@keyframes hudShift {
+  0%, 100% { transform: translateX(-18px); opacity: 0.38; }
+  50% { transform: translateX(18px); opacity: 0.88; }
+}
+
+@keyframes hudShiftVertical {
+  0%, 100% { transform: translateY(-18px); opacity: 0.38; }
+  50% { transform: translateY(18px); opacity: 0.88; }
+}
+
+@keyframes spherePulse {
+  0%, 100% { transform: scale(0.985); opacity: 0.9; }
+  50% { transform: scale(1.015); opacity: 1; }
+}
+
+@keyframes rotateSlow {
+  from { transform: rotate(0deg) rotateX(68deg); }
+  to { transform: rotate(360deg) rotateX(68deg); }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sparkDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.8); opacity: 0.45; }
+  50% { transform: translate3d(18px, -12px, 0) scale(1.22); opacity: 1; }
+}
+
+@keyframes nucleus {
+  0%, 100% { transform: scale(0.82); opacity: 0.78; }
+  50% { transform: scale(1.18); opacity: 1; }
 }
 
 @keyframes meter {
@@ -326,16 +562,18 @@ h1 {
   50% { transform: translateX(-50%) scaleY(1.25); }
 }
 
-@keyframes tilt {
-  0%, 100% { transform: rotate(-4deg); }
-  50% { transform: rotate(4deg); }
-}
-
 @media (max-width: 640px) {
   body { overflow: auto; }
-  .shell { width: min(100vw - 28px, 980px); padding: 44px 0 120px; align-content: start; }
-  h1 { font-size: 76px; }
-  .message { font-size: 28px; }
+  .console { padding: 14px; place-items: start center; }
+  .framework { width: calc(100vw - 28px); min-height: 680px; aspect-ratio: auto; }
+  .scope { inset: 96px 18px 210px; }
+  .sphere { width: min(340px, 82vw); }
+  .status-panel { left: 22px; right: 22px; bottom: 150px; width: auto; }
+  .transcript-panel { left: 22px; right: 22px; top: auto; bottom: 36px; width: auto; }
+  .readout-left { left: 22px; top: 28px; }
+  .readout-right { right: 22px; bottom: auto; top: 28px; }
+  h1 { font-size: 62px; }
+  .message { font-size: 24px; }
   .presence { right: 12px; bottom: 12px; grid-template-columns: 48px 98px; }
   .presence-orb { width: 48px; height: 48px; }
 }
@@ -348,6 +586,7 @@ const detail = document.getElementById("detail");
 const transcript = document.getElementById("transcript");
 const stateLabel = document.getElementById("stateLabel");
 const stateHint = document.getElementById("stateHint");
+const stateReadout = document.getElementById("stateReadout");
 
 const labels = {
   idle: ["Idle", "Waiting"],
@@ -370,10 +609,12 @@ async function refresh() {
     const label = labels[name] || labels.idle;
     stateLabel.textContent = label[0];
     stateHint.textContent = label[1];
+    stateReadout.textContent = label[0];
   } catch {
     presence.className = "presence error";
     stateLabel.textContent = "Offline";
     stateHint.textContent = "Reconnecting";
+    stateReadout.textContent = "Offline";
   }
 }
 
