@@ -27,6 +27,10 @@ uv run python -m lumen.main
 
 Lumen starts a local presence page at `http://127.0.0.1:8765` and opens it in your browser. The page shows Lumen's current state and a bottom-right icon that animates while it listens, thinks, acts, or speaks.
 
+Lumen also starts a native always-on-top orb at the bottom-right of your screen. It uses the same state as the web page, so it stays visible even when the browser is behind other windows.
+
+The native orb reads from the local presence server, so disabling the UI also disables the orb.
+
 To run without opening the browser:
 
 ```sh
@@ -37,6 +41,12 @@ To disable the UI entirely:
 
 ```sh
 LUMEN_UI_ENABLED=0 uv run python -m lumen.main
+```
+
+To disable only the native orb:
+
+```sh
+LUMEN_OVERLAY_ENABLED=0 uv run python -m lumen.main
 ```
 
 Try:
@@ -61,9 +71,21 @@ uv sync --extra voice
 Then run Lumen and use:
 
 ```text
+/voice
+```
+
+Lumen records until you stop speaking, transcribes with `mlx-whisper`, executes the command, and speaks the response with macOS `say`.
+
+To force a fixed recording window:
+
+```text
 /voice 5
 ```
 
-Lumen records five seconds from the microphone, transcribes with `mlx-whisper`, executes the command, and speaks the response with macOS `say`.
+The default speech-to-text model is `mlx-community/whisper-tiny` for speed. You can override it:
+
+```sh
+LUMEN_VOICE_STT_MODEL=mlx-community/whisper-small-mlx uv run python -m lumen.main
+```
 
 The first transcription may take longer while the Whisper model downloads.

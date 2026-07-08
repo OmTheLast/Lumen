@@ -20,7 +20,7 @@ class Transcription:
 class MlxWhisperTranscriber:
     def __init__(
         self,
-        model: str = "mlx-community/whisper-small-mlx",
+        model: str = "mlx-community/whisper-tiny",
         language: str | None = "en",
     ) -> None:
         self.model = model
@@ -51,4 +51,3 @@ class MlxWhisperTranscriber:
             raise SpeechToTextError("No speech detected.")
 
         return Transcription(text=text.strip(), backend=f"mlx-whisper:{self.model}", raw=result)
-
