@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from urllib.parse import quote_plus
 
 from lumen.agent.schemas import Action, Plan, ToolResult
 from lumen.config import Config
@@ -151,6 +152,25 @@ class Planner:
         if not lowered:
             return Plan("", [])
 
+        youtube_match = re.fullmatch(
+            r"(?:open\s+)?(?:youtube|you\s*tube)(?:\s+and)?\s+search(?:\s+for)?\s+(.+)",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if youtube_match:
+            query = youtube_match.group(1).strip()
+            url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
+            return Plan(
+                response=f"Searching YouTube for {query}.",
+                actions=[
+                    Action(
+                        tool="open_url",
+                        args={"url": url, "browser": self.config.default_browser},
+                        reason="The user asked to search YouTube.",
+                    )
+                ],
+            )
+
         app_match = re.fullmatch(r"(open|launch|start)\s+(.+)", text.strip(), re.IGNORECASE)
         if app_match:
             app_name = app_match.group(2).strip()
@@ -216,4 +236,3 @@ class Planner:
         if normalized == "brave":
             return "Brave Browser"
         return browser.strip().title()
-

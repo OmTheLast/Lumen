@@ -33,3 +33,9 @@ def test_browser_web_search_simple_plan():
     assert plan.actions[0].args["browser"] == "Google Chrome"
     assert plan.actions[0].args["query"] == "local LLM agents"
 
+
+def test_youtube_search_simple_plan():
+    plan = make_planner().plan("open youtube and search mit")
+
+    assert plan.actions[0].tool == "open_url"
+    assert plan.actions[0].args["url"] == "https://www.youtube.com/results?search_query=mit"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 from typing import NamedTuple
 
 from lumen.agent.executor import Executor
@@ -13,7 +14,7 @@ from lumen.tools import TOOLS
 from lumen.ui.overlay import start_overlay
 from lumen.ui.overlay import OverlayHandle
 from lumen.ui.server import PresenceServer
-from lumen.ui.state import PresenceState
+from lumen.ui.state import ChatBridge, PresenceState
 from lumen.voice.recorder import VoiceDependencyError, record_command_wav, record_wav
 from lumen.voice.stt import MlxWhisperTranscriber, SpeechToTextError
 from lumen.voice.tts import speak
@@ -24,8 +25,11 @@ def main() -> int:
     planner = Planner(config, OllamaClient(config.ollama_url))
     executor = Executor()
     presence = PresenceState()
-    ui_server = _start_presence_ui(config, presence)
+    chat_bridge = ChatBridge()
+    ui_server = _start_presence_ui(config, presence, chat_bridge)
     overlay = _start_overlay(config, ui_server)
+    stop_event = threading.Event()
+    worker = _start_web_command_worker(chat_bridge, planner, executor, presence, stop_event)
 
     print("Lumen v3 initialized")
     print(f"Planner: {config.planner_model}")
@@ -46,12 +50,12 @@ def main() -> int:
         except KeyboardInterrupt:
             print("\nShutting down Lumen.")
             presence.update("idle", "Lumen is shutting down.", detail="Terminal interrupted.")
-            _shutdown_presence(ui_server, overlay)
+            _shutdown_presence(ui_server, overlay, stop_event, worker)
             return 0
         except EOFError:
             presence.update("idle", "Lumen is shutting down.", detail="Terminal input closed.")
             print()
-            _shutdown_presence(ui_server, overlay)
+            _shutdown_presence(ui_server, overlay, stop_event, worker)
             return 0
 
         if not user_input:
@@ -59,7 +63,7 @@ def main() -> int:
         if user_input.lower() in {"quit", "exit"}:
             print("Shutting down Lumen.")
             presence.update("idle", "Lumen is shutting down.", detail="Goodbye.")
-            _shutdown_presence(ui_server, overlay)
+            _shutdown_presence(ui_server, overlay, stop_event, worker)
             return 0
 
         if user_input.startswith("/voice"):
@@ -195,11 +199,11 @@ class VoiceMode(NamedTuple):
     stt_model: str
 
 
-def _start_presence_ui(config: Config, presence: PresenceState) -> PresenceServer | None:
+def _start_presence_ui(config: Config, presence: PresenceState, chat_bridge: ChatBridge) -> PresenceServer | None:
     if not config.ui_enabled:
         return None
 
-    server = PresenceServer(presence, host=config.ui_host, port=config.ui_port)
+    server = PresenceServer(presence, host=config.ui_host, port=config.ui_port, chat_bridge=chat_bridge)
     try:
         server.start(open_browser=config.ui_open_browser)
     except RuntimeError as exc:
@@ -214,7 +218,36 @@ def _start_overlay(config: Config, ui_server: PresenceServer | None) -> OverlayH
     return start_overlay(state_url=f"{ui_server.url}/state", size=config.overlay_size)
 
 
-def _shutdown_presence(ui_server: PresenceServer | None, overlay: OverlayHandle | None) -> None:
+def _start_web_command_worker(
+    chat_bridge: ChatBridge,
+    planner: Planner,
+    executor: Executor,
+    presence: PresenceState,
+    stop_event: threading.Event,
+) -> threading.Thread:
+    def run() -> None:
+        while not stop_event.is_set():
+            command = chat_bridge.get_next(timeout=0.25)
+            if command is None:
+                continue
+            response = process_command(command, planner, executor, presence)
+            chat_bridge.append_lumen_message(response or "Done.")
+
+    worker = threading.Thread(target=run, name="lumen-web-commands", daemon=True)
+    worker.start()
+    return worker
+
+
+def _shutdown_presence(
+    ui_server: PresenceServer | None,
+    overlay: OverlayHandle | None,
+    stop_event: threading.Event | None = None,
+    worker: threading.Thread | None = None,
+) -> None:
+    if stop_event is not None:
+        stop_event.set()
+    if worker is not None:
+        worker.join(timeout=1)
     if overlay is not None:
         overlay.process.terminate()
         try:

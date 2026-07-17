@@ -5,17 +5,23 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
-import time
 from typing import Any
 from urllib.parse import urlparse
 import webbrowser
 
-from lumen.ui.state import PresenceState
+from lumen.ui.state import ChatBridge, PresenceState
 
 
 class PresenceServer:
-    def __init__(self, state: PresenceState, host: str = "127.0.0.1", port: int = 8765) -> None:
+    def __init__(
+        self,
+        state: PresenceState,
+        host: str = "127.0.0.1",
+        port: int = 8765,
+        chat_bridge: ChatBridge | None = None,
+    ) -> None:
         self.state = state
+        self.chat_bridge = chat_bridge or ChatBridge()
         self.host = host
         self.port = port
         self._server: ThreadingHTTPServer | None = None
@@ -52,10 +58,7 @@ class PresenceServer:
 
     def _make_handler(self) -> type[BaseHTTPRequestHandler]:
         presence = self.state
-        chat_lock = threading.Lock()
-        chat_messages: list[dict[str, str]] = [
-            {"role": "system", "text": "Local channel open.", "time": _clock_label()}
-        ]
+        chat_bridge = self.chat_bridge
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
@@ -73,8 +76,7 @@ class PresenceServer:
                     self._send_json(presence.as_dict())
                     return
                 if route == "/chat":
-                    with chat_lock:
-                        self._send_json({"messages": list(chat_messages[-24:])})
+                    self._send_json(chat_bridge.snapshot())
                     return
                 self.send_error(404)
 
@@ -86,31 +88,15 @@ class PresenceServer:
                     if not text:
                         self._send_json({"ok": False, "error": "empty message"}, status=400)
                         return
-                    with chat_lock:
-                        chat_messages.append({"role": "user", "text": text, "time": _clock_label()})
-                        chat_messages.append(
-                            {
-                                "role": "lumen",
-                                "text": "Message captured in the local console bridge.",
-                                "time": _clock_label(),
-                            }
-                        )
-                    presence.update("thinking", "Message received.", detail=text, transcript=text)
+                    chat_bridge.post_user_message(text)
+                    presence.update("thinking", "Command received.", detail=text, transcript=text)
                     self._send_json({"ok": True})
                     return
                 if route == "/voice-note":
                     length = int(self.headers.get("Content-Length", "0") or "0")
                     _ = self.rfile.read(min(length, 12_000_000))
-                    with chat_lock:
-                        chat_messages.append({"role": "user", "text": "Voice note captured.", "time": _clock_label()})
-                        chat_messages.append(
-                            {
-                                "role": "lumen",
-                                "text": "Voice message UI is online. Agent execution bridge comes next.",
-                                "time": _clock_label(),
-                            }
-                        )
-                    presence.update("listening", "Voice note received.", detail="Browser voice-message control is active.")
+                    chat_bridge.append_lumen_message("Voice note captured. Browser transcription bridge comes next.")
+                    presence.update("idle", "Voice note received.", detail="Browser voice-message capture is active.")
                     self._send_json({"ok": True})
                     return
                 self.send_error(404)
@@ -147,10 +133,6 @@ class PresenceServer:
         return Handler
 
 
-def _clock_label() -> str:
-    return time.strftime("%H:%M")
-
-
 INDEX_HTML = """<!doctype html>
 <html lang="en">
 <head>
@@ -168,6 +150,16 @@ INDEX_HTML = """<!doctype html>
       <div class="scope" aria-hidden="true">
         <div class="sphere">
           <canvas id="frameworkCanvas" class="sigil-canvas"></canvas>
+          <span class="shell shell-a"></span>
+          <span class="shell shell-b"></span>
+          <span class="shell shell-c"></span>
+          <span class="scaffold scaffold-a"></span>
+          <span class="scaffold scaffold-b"></span>
+          <span class="scaffold scaffold-c"></span>
+          <span class="core-ring core-ring-a"></span>
+          <span class="core-ring core-ring-b"></span>
+          <span class="core-slice core-slice-a"></span>
+          <span class="core-slice core-slice-b"></span>
           <span class="axis axis-a"></span>
           <span class="axis axis-b"></span>
           <span class="axis axis-c"></span>
@@ -268,21 +260,19 @@ body {
 .console {
   min-height: 100vh;
   display: grid;
-  place-items: center;
-  padding: 34px;
+  place-items: stretch;
+  padding: 0;
 }
 
 .framework {
   position: relative;
-  width: min(900px, calc(100vw - 48px));
-  aspect-ratio: 1 / 0.78;
-  min-height: 540px;
-  border: 1px solid rgba(255, 143, 45, 0.28);
+  width: 100vw;
+  height: 100vh;
+  min-height: 620px;
+  border: 0;
   background:
-    linear-gradient(90deg, transparent 0 7%, rgba(255, 143, 45, 0.08) 7% 7.25%, transparent 7.25% 92.75%, rgba(255, 143, 45, 0.08) 92.75% 93%, transparent 93%),
-    linear-gradient(0deg, transparent 0 10%, rgba(255, 143, 45, 0.08) 10% 10.35%, transparent 10.35% 89.65%, rgba(255, 143, 45, 0.08) 89.65% 90%, transparent 90%),
     radial-gradient(circle at 50% 47%, rgba(255, 139, 36, 0.12), rgba(8, 4, 2, 0.92) 54%, rgba(3, 2, 1, 0.96));
-  box-shadow: inset 0 0 80px rgba(255, 94, 24, 0.08), 0 24px 80px rgba(0, 0, 0, 0.46);
+  box-shadow: inset 0 0 80px rgba(255, 94, 24, 0.08);
   overflow: hidden;
 }
 
@@ -306,15 +296,11 @@ body {
 }
 
 .framework::after {
-  inset: 18px;
-  border: 1px solid rgba(255, 143, 45, 0.18);
-  clip-path: polygon(0 0, 34% 0, 34% 2px, 66% 2px, 66% 0, 100% 0, 100% 100%, 70% 100%, 70% calc(100% - 2px), 30% calc(100% - 2px), 30% 100%, 0 100%);
+  display: none;
 }
 
 .hud {
-  position: absolute;
-  background: linear-gradient(90deg, transparent, rgba(255, 166, 66, 0.86), transparent);
-  opacity: 0.72;
+  display: none;
 }
 
 .hud-top {
@@ -344,14 +330,15 @@ body {
 
 .scope {
   position: absolute;
-  inset: 70px 78px 92px;
+  inset: 0;
   display: grid;
   place-items: center;
+  z-index: 1;
 }
 
 .sphere {
   position: relative;
-  width: min(470px, 58vw);
+  width: min(76vmin, 820px);
   aspect-ratio: 1;
   border-radius: 50%;
   border: 1px solid rgba(255, 164, 64, 0.32);
@@ -393,6 +380,93 @@ body {
   transform: rotateY(66deg);
   animation: rotateSlow 7s linear infinite reverse;
 }
+
+.shell,
+.scaffold,
+.core-ring,
+.core-slice {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.shell {
+  inset: var(--shell-inset);
+  border: 1px solid rgba(255, 191, 86, var(--shell-alpha, 0.18));
+  background:
+    repeating-conic-gradient(from var(--shell-angle, 0deg), rgba(255, 195, 91, 0.28) 0 1deg, transparent 1deg 7deg),
+    radial-gradient(circle, transparent 58%, rgba(255, 130, 30, 0.12) 59% 61%, transparent 62%);
+  clip-path: polygon(0 0, 100% 0, 100% 44%, 61% 44%, 61% 58%, 100% 58%, 100% 100%, 0 100%, 0 61%, 37% 61%, 37% 48%, 0 48%);
+  filter: drop-shadow(0 0 12px rgba(255, 139, 36, 0.28));
+  mix-blend-mode: screen;
+  opacity: 0.86;
+  animation: shellOrbit var(--shell-speed, 12s) linear infinite;
+}
+
+.shell-a { --shell-inset: -4%; --shell-angle: 5deg; --shell-speed: 18s; --shell-alpha: 0.2; }
+.shell-b { --shell-inset: 7%; --shell-angle: 73deg; --shell-speed: 13s; --shell-alpha: 0.24; animation-direction: reverse; transform: rotateX(58deg); }
+.shell-c { --shell-inset: 18%; --shell-angle: 132deg; --shell-speed: 9s; --shell-alpha: 0.28; clip-path: polygon(0 0, 56% 0, 56% 19%, 100% 19%, 100% 100%, 42% 100%, 42% 78%, 0 78%); }
+
+.scaffold {
+  left: 50%;
+  top: 50%;
+  width: 82%;
+  height: 1px;
+  background:
+    linear-gradient(90deg, transparent 0 8%, rgba(255, 216, 122, 0.16) 8% 19%, transparent 19% 31%, rgba(255, 147, 45, 0.7) 31% 35%, transparent 35% 50%, rgba(255, 229, 160, 0.58) 50% 57%, transparent 57% 100%);
+  box-shadow:
+    0 0 10px rgba(255, 171, 64, 0.38),
+    0 14px 0 rgba(255, 152, 48, 0.1),
+    0 -18px 0 rgba(255, 195, 89, 0.08);
+  transform-origin: 0 50%;
+  mix-blend-mode: screen;
+  animation: scaffoldFlicker 2.8s ease-in-out infinite;
+  z-index: 3;
+}
+
+.scaffold-a { transform: rotate(6deg) translateX(-50%); }
+.scaffold-b { transform: rotate(94deg) translateX(-50%); animation-delay: -0.7s; opacity: 0.62; }
+.scaffold-c { transform: rotate(151deg) translateX(-50%); animation-delay: -1.6s; opacity: 0.52; }
+
+.core-ring {
+  inset: 36%;
+  border: 1px solid rgba(255, 224, 143, 0.62);
+  background:
+    repeating-conic-gradient(from 16deg, transparent 0 8deg, rgba(255, 187, 76, 0.4) 8deg 10deg, transparent 10deg 18deg),
+    radial-gradient(circle, transparent 52%, rgba(255, 111, 28, 0.22) 53% 60%, transparent 61%);
+  box-shadow: 0 0 18px rgba(255, 166, 62, 0.48), inset 0 0 22px rgba(255, 97, 24, 0.28);
+  mix-blend-mode: screen;
+  z-index: 5;
+}
+
+.core-ring-a {
+  animation: orbit 3.4s linear infinite;
+}
+
+.core-ring-b {
+  inset: 39%;
+  border-color: rgba(255, 132, 35, 0.52);
+  transform: rotateX(62deg) rotate(18deg);
+  animation: rotateSlow 2.9s linear infinite reverse;
+}
+
+.core-slice {
+  left: 50%;
+  top: 50%;
+  width: 28%;
+  height: 8%;
+  border: 1px solid rgba(255, 196, 91, 0.34);
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 232, 161, 0.2), rgba(255, 136, 38, 0.12), transparent),
+    repeating-linear-gradient(0deg, rgba(255, 199, 91, 0.22) 0 1px, transparent 1px 6px);
+  box-shadow: 0 0 20px rgba(255, 142, 39, 0.3);
+  mix-blend-mode: screen;
+  z-index: 4;
+}
+
+.core-slice-a { transform: translate(-30%, -78%) rotate(4deg); }
+.core-slice-b { transform: translate(-69%, 18%) rotate(-12deg); opacity: 0.72; }
 
 .axis,
 .arc,
@@ -476,13 +550,35 @@ body {
 .spark-d { left: 83%; top: 56%; animation: sparkDrift 5.4s ease-in-out infinite reverse; opacity: 0.78; }
 
 .nucleus {
-  inset: 40%;
+  inset: 42%;
   background:
-    radial-gradient(circle, #fff9d7 0 8%, #ffc45f 28%, #ff6d1d 56%, transparent 57%),
-    conic-gradient(from 0deg, transparent, rgba(255, 236, 156, 0.9), transparent 35%, rgba(255, 97, 24, 0.85), transparent 70%);
-  box-shadow: 0 0 38px rgba(255, 202, 87, 0.98), 0 0 116px rgba(255, 89, 21, 0.78);
+    radial-gradient(circle at 47% 45%, #fffbe2 0 7%, #ffe08e 13%, #ff8a2d 34%, transparent 35%),
+    conic-gradient(from 23deg, rgba(255, 244, 194, 0.95), transparent 18%, rgba(255, 126, 31, 0.92), transparent 44%, rgba(255, 215, 121, 0.78), transparent 71%, rgba(255, 106, 28, 0.88));
+  box-shadow: 0 0 42px rgba(255, 218, 118, 0.98), 0 0 132px rgba(255, 89, 21, 0.78);
   animation: nucleus 1.9s ease-in-out infinite;
-  z-index: 5;
+  z-index: 6;
+}
+
+.nucleus::before,
+.nucleus::after {
+  content: "";
+  position: absolute;
+  inset: -82%;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 231, 155, 0.38);
+  background: repeating-conic-gradient(from 18deg, rgba(255, 207, 104, 0.48) 0 5deg, transparent 5deg 16deg);
+  mix-blend-mode: screen;
+}
+
+.nucleus::before {
+  animation: orbit 2.2s linear infinite;
+}
+
+.nucleus::after {
+  inset: -132%;
+  opacity: 0.58;
+  transform: rotateX(68deg);
+  animation: orbit 3.2s linear infinite reverse;
 }
 
 .readout {
@@ -490,6 +586,7 @@ body {
   padding: 10px 12px;
   border-left: 2px solid rgba(255, 159, 55, 0.7);
   background: rgba(18, 8, 2, 0.46);
+  z-index: 3;
 }
 
 .readout span,
@@ -801,6 +898,19 @@ h1 {
   50% { transform: translateY(18px); opacity: 0.88; }
 }
 
+@keyframes shellOrbit {
+  from { transform: rotate(0deg) scaleX(1); }
+  50% { transform: rotate(180deg) scaleX(0.94); }
+  to { transform: rotate(360deg) scaleX(1); }
+}
+
+@keyframes scaffoldFlicker {
+  0%, 100% { opacity: 0.3; filter: blur(0); }
+  36% { opacity: 0.84; filter: blur(0.15px); }
+  48% { opacity: 0.42; }
+  62% { opacity: 0.72; }
+}
+
 @keyframes spherePulse {
   0%, 100% { transform: scale(0.985); opacity: 0.9; }
   50% { transform: scale(1.015); opacity: 1; }
@@ -840,9 +950,9 @@ h1 {
 @media (max-width: 640px) {
   body { overflow: auto; }
   .console { padding: 14px; place-items: start center; }
-  .framework { width: calc(100vw - 28px); min-height: 900px; aspect-ratio: auto; }
-  .scope { inset: 96px 18px 430px; }
-  .sphere { width: min(340px, 82vw); }
+  .framework { width: calc(100vw - 28px); min-height: 900px; height: auto; }
+  .scope { inset: 96px 0 430px; }
+  .sphere { width: min(78vmin, 82vw); }
   .status-panel { left: 22px; right: 22px; bottom: 354px; width: auto; }
   .transcript-panel { display: none; }
   .chat-panel { left: 22px; right: 22px; bottom: 90px; width: auto; padding: 10px; gap: 8px; }
@@ -1061,6 +1171,46 @@ function drawSigil(canvas, time, compact = false) {
     ctx.arc(0, 0, radius * (0.72 + i * 0.18), 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  if (!compact) {
+    for (let i = 0; i < 5; i++) {
+      const ringRadius = radius * (0.18 + i * 0.085);
+      const segments = 7 + i * 2;
+      ctx.save();
+      ctx.rotate(time * (0.0008 - i * 0.00009) + i * 0.72);
+      ctx.strokeStyle = rgba(rgb, 0.34 - i * 0.035);
+      ctx.lineWidth = 1.2 + (i % 2) * 0.6;
+      for (let s = 0; s < segments; s++) {
+        const start = (s / segments) * Math.PI * 2;
+        const span = 0.12 + ((s + i) % 3) * 0.08;
+        ctx.beginPath();
+        ctx.arc(0, 0, ringRadius, start, start + span);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    for (let i = 0; i < 26; i++) {
+      const angle = i * 0.73 + time * 0.00046;
+      const distance = radius * (0.16 + (i % 9) * 0.044);
+      const length = radius * (0.035 + (i % 4) * 0.018);
+      const x = Math.cos(angle) * distance;
+      const y = Math.sin(angle * 1.17) * distance * 0.72;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle + Math.PI / 2);
+      ctx.strokeStyle = rgba(rgb, 0.18 + (i % 5) * 0.06);
+      ctx.lineWidth = i % 6 === 0 ? 2.2 : 1.1;
+      ctx.beginPath();
+      ctx.moveTo(-length, 0);
+      ctx.lineTo(length, 0);
+      ctx.stroke();
+      if (i % 4 === 0) {
+        ctx.strokeRect(length * 0.35, -length * 0.28, length * 1.35, length * 0.56);
+      }
+      ctx.restore();
+    }
   }
 
   const core = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.23);
