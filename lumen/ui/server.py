@@ -5,6 +5,7 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
+import time
 from typing import Any
 from urllib.parse import urlparse
 import webbrowser
@@ -51,6 +52,10 @@ class PresenceServer:
 
     def _make_handler(self) -> type[BaseHTTPRequestHandler]:
         presence = self.state
+        chat_lock = threading.Lock()
+        chat_messages: list[dict[str, str]] = [
+            {"role": "system", "text": "Local channel open.", "time": _clock_label()}
+        ]
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
@@ -67,6 +72,47 @@ class PresenceServer:
                 if route == "/state":
                     self._send_json(presence.as_dict())
                     return
+                if route == "/chat":
+                    with chat_lock:
+                        self._send_json({"messages": list(chat_messages[-24:])})
+                    return
+                self.send_error(404)
+
+            def do_POST(self) -> None:
+                route = urlparse(self.path).path
+                if route == "/chat":
+                    payload = self._read_json()
+                    text = str(payload.get("text") or "").strip()[:600]
+                    if not text:
+                        self._send_json({"ok": False, "error": "empty message"}, status=400)
+                        return
+                    with chat_lock:
+                        chat_messages.append({"role": "user", "text": text, "time": _clock_label()})
+                        chat_messages.append(
+                            {
+                                "role": "lumen",
+                                "text": "Message captured in the local console bridge.",
+                                "time": _clock_label(),
+                            }
+                        )
+                    presence.update("thinking", "Message received.", detail=text, transcript=text)
+                    self._send_json({"ok": True})
+                    return
+                if route == "/voice-note":
+                    length = int(self.headers.get("Content-Length", "0") or "0")
+                    _ = self.rfile.read(min(length, 12_000_000))
+                    with chat_lock:
+                        chat_messages.append({"role": "user", "text": "Voice note captured.", "time": _clock_label()})
+                        chat_messages.append(
+                            {
+                                "role": "lumen",
+                                "text": "Voice message UI is online. Agent execution bridge comes next.",
+                                "time": _clock_label(),
+                            }
+                        )
+                    presence.update("listening", "Voice note received.", detail="Browser voice-message control is active.")
+                    self._send_json({"ok": True})
+                    return
                 self.send_error(404)
 
             def log_message(self, format: str, *args: Any) -> None:
@@ -80,9 +126,18 @@ class PresenceServer:
                 self.end_headers()
                 self.wfile.write(encoded)
 
-            def _send_json(self, payload: dict[str, Any]) -> None:
+            def _read_json(self) -> dict[str, Any]:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+                raw = self.rfile.read(min(length, 64_000))
+                try:
+                    payload = json.loads(raw.decode("utf-8"))
+                except Exception:
+                    return {}
+                return payload if isinstance(payload, dict) else {}
+
+            def _send_json(self, payload: dict[str, Any], status: int = 200) -> None:
                 encoded = json.dumps(payload).encode("utf-8")
-                self.send_response(200)
+                self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", str(len(encoded)))
@@ -90,6 +145,10 @@ class PresenceServer:
                 self.wfile.write(encoded)
 
         return Handler
+
+
+def _clock_label() -> str:
+    return time.strftime("%H:%M")
 
 
 INDEX_HTML = """<!doctype html>
@@ -145,6 +204,20 @@ INDEX_HTML = """<!doctype html>
         <p class="label">last heard</p>
         <p id="transcript" class="transcript">Nothing yet.</p>
       </div>
+      <section class="chat-panel" aria-label="Lumen chat">
+        <div class="chat-head">
+          <span>console channel</span>
+          <strong>Chat / voice</strong>
+        </div>
+        <div id="chatLog" class="chat-log"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" name="message" autocomplete="off" placeholder="Message Lumen..." />
+          <button type="button" id="voiceButton" class="voice-button" aria-label="Record voice message">
+            <span></span>
+          </button>
+          <button type="submit" class="send-button">Send</button>
+        </form>
+      </section>
     </section>
   </main>
   <aside id="presence" class="presence idle" aria-live="polite">
@@ -436,7 +509,7 @@ body {
 }
 
 .readout-left { left: 48px; top: 64px; }
-.readout-right { right: 52px; bottom: 84px; text-align: right; border-left: 0; border-right: 2px solid rgba(255, 159, 55, 0.7); }
+.readout-right { right: 52px; top: 176px; text-align: right; border-left: 0; border-right: 2px solid rgba(255, 159, 55, 0.7); }
 
 .status-panel {
   position: absolute;
@@ -481,6 +554,144 @@ h1 {
   border: 1px solid rgba(255, 143, 45, 0.22);
   background: rgba(10, 5, 2, 0.46);
   box-shadow: inset 0 0 28px rgba(255, 110, 24, 0.08);
+}
+
+.chat-panel {
+  position: absolute;
+  right: 48px;
+  bottom: 116px;
+  width: min(330px, calc(100% - 96px));
+  display: grid;
+  grid-template-rows: auto minmax(118px, 1fr) auto;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 143, 45, 0.24);
+  background: linear-gradient(180deg, rgba(23, 10, 3, 0.72), rgba(8, 4, 2, 0.62));
+  box-shadow: inset 0 0 34px rgba(255, 110, 24, 0.08), 0 18px 44px rgba(0, 0, 0, 0.22);
+  z-index: 3;
+}
+
+.chat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 143, 45, 0.16);
+  padding-bottom: 9px;
+}
+
+.chat-head span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.chat-head strong {
+  color: var(--amber);
+  font-size: 13px;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  min-height: 118px;
+  max-height: 166px;
+}
+
+.chat-message {
+  max-width: 88%;
+  border: 1px solid rgba(255, 143, 45, 0.18);
+  padding: 8px 9px;
+  color: #ffe0ad;
+  background: rgba(8, 4, 2, 0.54);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  color: #fff0d0;
+  border-color: rgba(255, 191, 91, 0.28);
+  background: rgba(96, 40, 9, 0.32);
+}
+
+.chat-message small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px 58px;
+  gap: 8px;
+}
+
+.chat-form input,
+.chat-form button {
+  min-height: 38px;
+  border: 1px solid rgba(255, 143, 45, 0.26);
+  background: rgba(8, 4, 2, 0.72);
+  color: var(--text);
+  font: inherit;
+}
+
+.chat-form input {
+  min-width: 0;
+  padding: 0 10px;
+  outline: none;
+}
+
+.chat-form input:focus,
+.chat-form button:focus-visible {
+  border-color: rgba(255, 204, 116, 0.82);
+  box-shadow: 0 0 0 2px rgba(255, 143, 45, 0.18);
+}
+
+.chat-form button {
+  cursor: pointer;
+}
+
+.voice-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.voice-button span {
+  width: 12px;
+  height: 18px;
+  border: 2px solid var(--amber);
+  border-radius: 99px;
+  position: relative;
+}
+
+.voice-button span::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 14px;
+  height: 7px;
+  border-bottom: 2px solid var(--amber);
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  transform: translateX(-50%);
+}
+
+.voice-button.recording {
+  background: rgba(255, 89, 21, 0.28);
+  box-shadow: 0 0 24px rgba(255, 89, 21, 0.28);
+}
+
+.send-button {
+  color: var(--amber);
+  font-size: 13px;
+  text-transform: uppercase;
 }
 
 .label {
@@ -629,16 +840,20 @@ h1 {
 @media (max-width: 640px) {
   body { overflow: auto; }
   .console { padding: 14px; place-items: start center; }
-  .framework { width: calc(100vw - 28px); min-height: 680px; aspect-ratio: auto; }
-  .scope { inset: 96px 18px 210px; }
+  .framework { width: calc(100vw - 28px); min-height: 900px; aspect-ratio: auto; }
+  .scope { inset: 96px 18px 430px; }
   .sphere { width: min(340px, 82vw); }
-  .status-panel { left: 22px; right: 22px; bottom: 150px; width: auto; }
-  .transcript-panel { left: 22px; right: 22px; top: auto; bottom: 36px; width: auto; }
+  .status-panel { left: 22px; right: 22px; bottom: 354px; width: auto; }
+  .transcript-panel { display: none; }
+  .chat-panel { left: 22px; right: 22px; bottom: 90px; width: auto; padding: 10px; gap: 8px; }
+  .chat-log { min-height: 48px; max-height: 54px; }
+  .chat-message { padding: 7px 8px; font-size: 12px; }
+  .chat-form { grid-template-columns: minmax(0, 1fr) 38px 54px; }
   .readout-left { left: 22px; top: 28px; }
   .readout-right { right: 22px; bottom: auto; top: 28px; }
   h1 { font-size: 62px; }
   .message { font-size: 24px; }
-  .presence { right: 12px; bottom: 12px; grid-template-columns: 48px 98px; }
+  .presence { display: none; }
   .presence-orb { width: 48px; height: 48px; }
 }
 
@@ -663,7 +878,15 @@ const stateHint = document.getElementById("stateHint");
 const stateReadout = document.getElementById("stateReadout");
 const frameworkCanvas = document.getElementById("frameworkCanvas");
 const presenceCanvas = document.getElementById("presenceCanvas");
+const framework = document.querySelector(".framework");
+const chatLog = document.getElementById("chatLog");
+const chatForm = document.getElementById("chatForm");
+const chatInput = document.getElementById("chatInput");
+const voiceButton = document.getElementById("voiceButton");
 let activeState = "idle";
+let pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+let mediaRecorder = null;
+let voiceChunks = [];
 
 const labels = {
   idle: ["Idle", "Waiting"],
@@ -735,8 +958,8 @@ const nodes = buildNodes();
 
 function rotatePoint(point, time, compact) {
   const speed = compact ? 0.0018 : 0.0011;
-  const ay = time * speed;
-  const ax = Math.sin(time * 0.00042) * 0.42 + 0.22;
+  const ay = time * speed + (compact ? pointer.x * 0.45 : pointer.x * 0.9);
+  const ax = Math.sin(time * 0.00042) * 0.42 + 0.22 + (compact ? pointer.y * 0.22 : pointer.y * 0.55);
   const az = Math.cos(time * 0.00031) * 0.18;
   let x = point.x;
   let y = point.y;
@@ -852,6 +1075,8 @@ function drawSigil(canvas, time, compact = false) {
 }
 
 function animateSigils(time) {
+  pointer.x += (pointer.tx - pointer.x) * 0.08;
+  pointer.y += (pointer.ty - pointer.y) * 0.08;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const t = reduced ? 1200 : time;
   drawSigil(frameworkCanvas, t, false);
@@ -859,7 +1084,107 @@ function animateSigils(time) {
   if (!reduced) requestAnimationFrame(animateSigils);
 }
 
+function updatePointer(event) {
+  if (!framework) return;
+  const rect = framework.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+  const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+  pointer.tx = Math.max(-1, Math.min(1, x));
+  pointer.ty = Math.max(-1, Math.min(1, y));
+}
+
+function resetPointer() {
+  pointer.tx = 0;
+  pointer.ty = 0;
+}
+
+async function refreshChat() {
+  if (!chatLog) return;
+  try {
+    const response = await fetch("/chat", { cache: "no-store" });
+    const payload = await response.json();
+    const messages = payload.messages || [];
+    chatLog.innerHTML = messages.map((item) => {
+      const role = item.role === "user" ? "user" : "lumen";
+      return `<div class="chat-message ${role}"><small>${item.time || ""} · ${role}</small>${escapeHtml(item.text || "")}</div>`;
+    }).join("");
+    chatLog.scrollTop = chatLog.scrollHeight;
+  } catch {
+    chatLog.innerHTML = `<div class="chat-message lumen"><small>offline</small>Chat bridge unavailable.</div>`;
+  }
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[char]);
+}
+
+async function sendChatMessage(event) {
+  event.preventDefault();
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = "";
+  await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  refreshChat();
+}
+
+async function toggleVoiceMessage() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Voice message requested, but this browser cannot record audio." })
+    });
+    refreshChat();
+    return;
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  voiceChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) voiceChunks.push(event.data);
+  };
+  mediaRecorder.onstop = async () => {
+    voiceButton.classList.remove("recording");
+    stream.getTracks().forEach((track) => track.stop());
+    const blob = new Blob(voiceChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+    await fetch("/voice-note", { method: "POST", body: blob });
+    refreshChat();
+  };
+  voiceButton.classList.add("recording");
+  mediaRecorder.start();
+}
+
 refresh();
+refreshChat();
 setInterval(refresh, 650);
+setInterval(refreshChat, 1800);
+framework?.addEventListener("pointermove", updatePointer);
+framework?.addEventListener("pointerleave", resetPointer);
+chatForm?.addEventListener("submit", sendChatMessage);
+voiceButton?.addEventListener("click", () => {
+  toggleVoiceMessage().catch(async () => {
+    voiceButton.classList.remove("recording");
+    await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Voice message permission was denied or unavailable." })
+    });
+    refreshChat();
+  });
+});
 requestAnimationFrame(animateSigils);
 """
