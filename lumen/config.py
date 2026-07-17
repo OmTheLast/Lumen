@@ -21,7 +21,7 @@ class Config:
     ui_port: int = int(os.getenv("LUMEN_UI_PORT", "8765"))
     ui_open_browser: bool = os.getenv("LUMEN_UI_OPEN_BROWSER", "1") != "0"
     overlay_enabled: bool = os.getenv("LUMEN_OVERLAY_ENABLED", "1") != "0"
-    overlay_size: int = int(os.getenv("LUMEN_OVERLAY_SIZE", "172"))
+    overlay_size: int = int(os.getenv("LUMEN_OVERLAY_SIZE", "136"))
     voice_stt_model: str = os.getenv("LUMEN_VOICE_STT_MODEL", "mlx-community/whisper-tiny")
     voice_auto_max_seconds: float = float(os.getenv("LUMEN_VOICE_AUTO_MAX_SECONDS", "12"))
     voice_silence_seconds: float = float(os.getenv("LUMEN_VOICE_SILENCE_SECONDS", "0.8"))

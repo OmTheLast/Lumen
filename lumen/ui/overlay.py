@@ -16,7 +16,7 @@ class OverlayHandle:
     process: subprocess.Popen[bytes]
 
 
-def start_overlay(*, state_url: str, size: int = 172) -> OverlayHandle | None:
+def start_overlay(*, state_url: str, size: int = 136) -> OverlayHandle | None:
     """Start the native overlay as a helper process.
 
     On macOS, Tk/AppKit windows must be created on the main thread. Running the
@@ -30,7 +30,7 @@ def start_overlay(*, state_url: str, size: int = 172) -> OverlayHandle | None:
         "--state-url",
         state_url,
         "--size",
-        str(max(132, size)),
+        str(max(96, size)),
     ]
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -43,7 +43,7 @@ def start_overlay(*, state_url: str, size: int = 172) -> OverlayHandle | None:
 def main(argv: list[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
     state_url = ""
-    size = 172
+    size = 136
 
     index = 0
     while index < len(argv):
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     if not state_url:
         print("Missing --state-url")
         return 2
-    _run_overlay(state_url, max(132, size))
+    _run_overlay(state_url, max(96, size))
     return 0
 
 
@@ -73,12 +73,12 @@ def _run_overlay(state_url: str, size: int) -> None:
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     try:
-        root.attributes("-alpha", 0.94)
+        root.attributes("-alpha", 0.96)
     except tk.TclError:
         pass
 
     width = size
-    height = max(96, int(size * 0.58))
+    height = size
     screen_w = root.winfo_screenwidth()
     screen_h = root.winfo_screenheight()
     x = max(0, screen_w - width - 22)
@@ -126,12 +126,11 @@ class _OverlayRenderer:
         snapshot = self._fetch_state()
         mode = str(snapshot.get("state") or "idle")
         color = self.colors.get(mode, self.colors["idle"])
-        label, hint = self.labels.get(mode, self.labels["idle"])
+        label, _ = self.labels.get(mode, self.labels["idle"])
 
         self.canvas.delete("all")
-        self._draw_panel(color)
         self._draw_orb(color, mode)
-        self._draw_text(label, hint)
+        self._draw_status_tick(color, label)
         self.frame += 1
         self.canvas.after(80, self.tick)
 
@@ -146,23 +145,33 @@ class _OverlayRenderer:
             self.last_state = {"state": "offline"}
         return self.last_state
 
-    def _draw_panel(self, color: str) -> None:
-        w, h = self.width, self.height
-        self.canvas.create_rectangle(1, 1, w - 2, h - 2, fill="#120703", outline="#5f2c0d", width=1)
-        self.canvas.create_rectangle(4, 4, w - 5, h - 5, outline="#2b1408", width=1)
-        self.canvas.create_line(12, h - 12, w - 12, h - 12, fill="#3d1b09")
-        self.canvas.create_line(12, 12, 58, 12, fill=color, width=1)
-        self.canvas.create_line(w - 58, 12, w - 12, 12, fill=color, width=1)
-
     def _draw_orb(self, color: str, mode: str) -> None:
-        cx = 43
+        cx = self.width // 2
         cy = self.height // 2
-        radius = 25
-        pulse = 1 + 0.06 * math.sin(self.frame / 3)
+        radius = min(self.width, self.height) * 0.34
+        pulse = 1 + 0.045 * math.sin(self.frame / 3)
         if mode == "idle":
             pulse = 1
 
         outer = radius * pulse
+        self.canvas.create_oval(
+            cx - outer - 13,
+            cy - outer - 13,
+            cx + outer + 13,
+            cy + outer + 13,
+            outline="#301405",
+            width=1,
+            fill="#0b0401",
+        )
+        for index, angle in enumerate(range(0, 360, 18)):
+            theta = math.radians(angle + self.frame * 1.7)
+            inner = outer * (0.76 if index % 2 else 0.86)
+            x1 = cx + math.cos(theta) * inner
+            y1 = cy + math.sin(theta) * inner
+            x2 = cx + math.cos(theta) * (outer + 8)
+            y2 = cy + math.sin(theta) * (outer + 8)
+            self.canvas.create_line(x1, y1, x2, y2, fill=color if index % 3 == 0 else "#6a2d0b", width=1)
+
         self.canvas.create_oval(
             cx - outer,
             cy - outer,
@@ -173,40 +182,49 @@ class _OverlayRenderer:
             fill="#1a0802",
         )
         self.canvas.create_oval(
-            cx - 9,
-            cy - 9,
-            cx + 9,
-            cy + 9,
+            cx - outer * 0.74,
+            cy - outer * 0.74,
+            cx + outer * 0.74,
+            cy + outer * 0.74,
+            outline="#7d3b11",
+            width=1,
+        )
+        self.canvas.create_oval(
+            cx - outer * 0.48,
+            cy - outer * 0.48,
+            cx + outer * 0.48,
+            cy + outer * 0.48,
+            outline="#a65318",
+            width=1,
+        )
+        self.canvas.create_oval(
+            cx - 11,
+            cy - 11,
+            cx + 11,
+            cy + 11,
             fill=color,
             outline="#ffd89a",
             width=1,
         )
 
         angle = self.frame / 8
-        for offset in (0, 2.1, 4.2):
-            x1 = cx + math.cos(angle + offset) * 8
-            y1 = cy + math.sin(angle + offset) * 20
-            x2 = cx + math.cos(angle + offset + math.pi) * 22
-            y2 = cy + math.sin(angle + offset + math.pi) * 7
-            self.canvas.create_line(x1, y1, x2, y2, fill="#6f350f", width=1)
+        for offset in (0, 1.31, 2.73, 4.19):
+            x1 = cx + math.cos(angle + offset) * 6
+            y1 = cy + math.sin(angle + offset) * 7
+            x2 = cx + math.cos(angle + offset) * (outer * 0.78)
+            y2 = cy + math.sin(angle + offset) * (outer * 0.78)
+            self.canvas.create_line(x1, y1, x2, y2, fill="#ffb14a", width=1)
 
-        bar_scale = 0.5 if mode == "idle" else 0.8 + 0.45 * math.sin(self.frame / 2)
-        for index, x in enumerate((cx - 8, cx, cx + 8)):
-            bar_h = (10 + index * 4) * bar_scale
-            self.canvas.create_rectangle(
-                x - 2,
-                cy + 17 - bar_h,
-                x + 2,
-                cy + 17,
-                fill="#190902",
-                outline="",
-            )
+        for offset in (0.4, 2.5, 4.8):
+            sx = cx + math.cos(angle * 0.9 + offset) * outer * 0.62
+            sy = cy + math.sin(angle * 1.1 + offset) * outer * 0.62
+            self.canvas.create_oval(sx - 2, sy - 2, sx + 2, sy + 2, fill="#ffd788", outline="")
 
-    def _draw_text(self, label: str, hint: str) -> None:
-        x = 82
-        y = self.height // 2 - 12
-        self.canvas.create_text(x, y, anchor="w", text=label, fill="#fff1d8", font=("Helvetica", 15, "bold"))
-        self.canvas.create_text(x, y + 22, anchor="w", text=hint, fill="#d39a60", font=("Helvetica", 12))
+    def _draw_status_tick(self, color: str, label: str) -> None:
+        cx = self.width - 25
+        cy = self.height - 25
+        self.canvas.create_oval(cx - 10, cy - 10, cx + 10, cy + 10, fill="#170803", outline="#5f2c0d", width=1)
+        self.canvas.create_oval(cx - 4, cy - 4, cx + 4, cy + 4, fill=color, outline="")
 
 
 if __name__ == "__main__":

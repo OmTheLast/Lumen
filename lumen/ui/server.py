@@ -114,9 +114,15 @@ INDEX_HTML = """<!doctype html>
           <span class="arc arc-a"></span>
           <span class="arc arc-b"></span>
           <span class="arc arc-c"></span>
+          <span class="arc arc-d"></span>
+          <span class="filament filament-a"></span>
+          <span class="filament filament-b"></span>
+          <span class="filament filament-c"></span>
+          <span class="filament filament-d"></span>
           <span class="spark spark-a"></span>
           <span class="spark spark-b"></span>
           <span class="spark spark-c"></span>
+          <span class="spark spark-d"></span>
           <span class="nucleus"></span>
         </div>
       </div>
@@ -275,11 +281,13 @@ body {
   border-radius: 50%;
   border: 1px solid rgba(255, 164, 64, 0.32);
   background:
+    repeating-conic-gradient(from 18deg, rgba(255, 171, 72, 0.2) 0 2deg, transparent 2deg 7deg),
     radial-gradient(circle at 50% 50%, rgba(255, 194, 88, 0.22), transparent 9%),
     radial-gradient(circle at 44% 48%, rgba(255, 112, 29, 0.24), transparent 28%),
     radial-gradient(circle, transparent 54%, rgba(255, 131, 35, 0.13) 55%, transparent 71%);
   box-shadow: inset 0 0 64px rgba(255, 102, 25, 0.18), 0 0 74px rgba(255, 115, 24, 0.22);
   animation: spherePulse 4.4s ease-in-out infinite;
+  isolation: isolate;
 }
 
 .sphere::before,
@@ -304,6 +312,7 @@ body {
 
 .axis,
 .arc,
+.filament,
 .spark,
 .nucleus {
   position: absolute;
@@ -346,6 +355,30 @@ body {
   animation-duration: 3.7s;
 }
 
+.arc-d {
+  inset: 4%;
+  border-left-color: rgba(255, 141, 37, 0.48);
+  border-bottom-color: rgba(255, 198, 90, 0.28);
+  transform: rotate(-18deg);
+  animation-duration: 10.4s;
+}
+
+.filament {
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  height: 1px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(255, 245, 183, 0.9), rgba(255, 138, 42, 0.48), transparent);
+  filter: drop-shadow(0 0 8px rgba(255, 149, 45, 0.72));
+  animation: filamentSweep 3.6s ease-in-out infinite;
+}
+
+.filament-a { transform: rotate(8deg); }
+.filament-b { transform: rotate(137deg); animation-delay: -0.7s; opacity: 0.64; }
+.filament-c { transform: rotate(221deg); animation-delay: -1.4s; opacity: 0.52; }
+.filament-d { transform: rotate(302deg); animation-delay: -2.1s; opacity: 0.44; }
+
 .spark {
   width: 6px;
   height: 6px;
@@ -356,11 +389,14 @@ body {
 .spark-a { left: 73%; top: 32%; animation: sparkDrift 5s ease-in-out infinite; }
 .spark-b { left: 29%; top: 67%; animation: sparkDrift 6s ease-in-out infinite reverse; }
 .spark-c { left: 52%; top: 18%; animation: sparkDrift 4.2s ease-in-out infinite; }
+.spark-d { left: 83%; top: 56%; animation: sparkDrift 5.4s ease-in-out infinite reverse; opacity: 0.78; }
 
 .nucleus {
-  inset: 43%;
-  background: radial-gradient(circle, #fff8cc 0 10%, #ffc35b 35%, #ff6d1d 72%, transparent 73%);
-  box-shadow: 0 0 36px rgba(255, 202, 87, 0.95), 0 0 92px rgba(255, 89, 21, 0.74);
+  inset: 40%;
+  background:
+    radial-gradient(circle, #fff9d7 0 8%, #ffc45f 28%, #ff6d1d 56%, transparent 57%),
+    conic-gradient(from 0deg, transparent, rgba(255, 236, 156, 0.9), transparent 35%, rgba(255, 97, 24, 0.85), transparent 70%);
+  box-shadow: 0 0 38px rgba(255, 202, 87, 0.98), 0 0 116px rgba(255, 89, 21, 0.78);
   animation: nucleus 1.9s ease-in-out infinite;
 }
 
@@ -451,7 +487,7 @@ h1 {
   right: 18px;
   bottom: 18px;
   display: grid;
-  grid-template-columns: 52px minmax(0, 116px);
+  grid-template-columns: 56px minmax(0, 116px);
   gap: 12px;
   align-items: center;
   padding: 12px 14px 12px 12px;
@@ -465,14 +501,16 @@ h1 {
 
 .presence-orb {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: 1px solid rgba(255, 199, 100, 0.52);
   background:
-    radial-gradient(circle at 50% 50%, #fff5bf 0 6%, #ffb347 20%, transparent 21%),
+    radial-gradient(circle at 50% 50%, #fff7c5 0 5%, #ffbd58 13%, transparent 14%),
+    repeating-conic-gradient(from 0deg, rgba(255, 198, 91, 0.92) 0 5deg, transparent 5deg 12deg),
+    radial-gradient(circle, transparent 43%, rgba(255, 136, 35, 0.48) 44% 47%, transparent 48%),
     conic-gradient(from 20deg, transparent, rgba(255, 164, 64, 0.9), transparent 44%, rgba(255, 98, 25, 0.76), transparent 78%);
-  box-shadow: 0 0 24px rgba(255, 128, 32, 0.62);
+  box-shadow: 0 0 28px rgba(255, 128, 32, 0.68), inset 0 0 18px rgba(255, 193, 91, 0.16);
   animation: orbit 5.5s linear infinite;
 }
 
@@ -552,6 +590,12 @@ h1 {
   50% { transform: translate3d(18px, -12px, 0) scale(1.22); opacity: 1; }
 }
 
+@keyframes filamentSweep {
+  0%, 100% { opacity: 0.2; width: 28%; }
+  45% { opacity: 0.92; width: 48%; }
+  70% { opacity: 0.38; width: 34%; }
+}
+
 @keyframes nucleus {
   0%, 100% { transform: scale(0.82); opacity: 0.78; }
   50% { transform: scale(1.18); opacity: 1; }
@@ -576,6 +620,16 @@ h1 {
   .message { font-size: 24px; }
   .presence { right: 12px; bottom: 12px; grid-template-columns: 48px 98px; }
   .presence-orb { width: 48px; height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
 """
 
