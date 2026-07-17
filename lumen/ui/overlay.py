@@ -121,6 +121,7 @@ class _OverlayRenderer:
         self.height = height
         self.frame = 0
         self.last_state: dict[str, Any] = {"state": "idle"}
+        self.nodes = self._build_nodes()
 
     def tick(self) -> None:
         snapshot = self._fetch_state()
@@ -148,7 +149,7 @@ class _OverlayRenderer:
     def _draw_orb(self, color: str, mode: str) -> None:
         cx = self.width // 2
         cy = self.height // 2
-        radius = min(self.width, self.height) * 0.34
+        radius = min(self.width, self.height) * 0.31
         pulse = 1 + 0.045 * math.sin(self.frame / 3)
         if mode == "idle":
             pulse = 1
@@ -163,6 +164,7 @@ class _OverlayRenderer:
             width=1,
             fill="#0b0401",
         )
+
         for index, angle in enumerate(range(0, 360, 18)):
             theta = math.radians(angle + self.frame * 1.7)
             inner = outer * (0.76 if index % 2 else 0.86)
@@ -181,6 +183,20 @@ class _OverlayRenderer:
             width=2,
             fill="#1a0802",
         )
+
+        projected = self._project_nodes(cx, cy, outer)
+        edges: list[tuple[dict[str, float], dict[str, float], float]] = []
+        for i, a in enumerate(projected):
+            for b in projected[i + 1 :]:
+                same_ring = a["ring"] == b["ring"] and abs(a["index"] - b["index"]) <= 1
+                dist = math.dist((a["x"], a["y"], a["z"]), (b["x"], b["y"], b["z"]))
+                if same_ring or dist < 0.42:
+                    edges.append((a, b, (a["rz"] + b["rz"]) / 2))
+        edges.sort(key=lambda edge: edge[2])
+        for a, b, z in edges[:210]:
+            shade = self._shade(color, max(0.18, min(0.72, (z + 1.25) / 2.7)))
+            self.canvas.create_line(a["px"], a["py"], b["px"], b["py"], fill=shade, width=1)
+
         self.canvas.create_oval(
             cx - outer * 0.74,
             cy - outer * 0.74,
@@ -207,24 +223,86 @@ class _OverlayRenderer:
             width=1,
         )
 
-        angle = self.frame / 8
-        for offset in (0, 1.31, 2.73, 4.19):
-            x1 = cx + math.cos(angle + offset) * 6
-            y1 = cy + math.sin(angle + offset) * 7
-            x2 = cx + math.cos(angle + offset) * (outer * 0.78)
-            y2 = cy + math.sin(angle + offset) * (outer * 0.78)
-            self.canvas.create_line(x1, y1, x2, y2, fill="#ffb14a", width=1)
-
-        for offset in (0.4, 2.5, 4.8):
-            sx = cx + math.cos(angle * 0.9 + offset) * outer * 0.62
-            sy = cy + math.sin(angle * 1.1 + offset) * outer * 0.62
-            self.canvas.create_oval(sx - 2, sy - 2, sx + 2, sy + 2, fill="#ffd788", outline="")
+        for point in sorted(projected, key=lambda item: item["rz"]):
+            alpha = max(0.26, min(1.0, (point["rz"] + 1.2) / 2.2))
+            shade = self._shade(color, alpha)
+            r = 1.2 + point["depth"] * 0.9
+            self.canvas.create_oval(point["px"] - r, point["py"] - r, point["px"] + r, point["py"] + r, fill=shade, outline="")
 
     def _draw_status_tick(self, color: str, label: str) -> None:
         cx = self.width - 25
         cy = self.height - 25
         self.canvas.create_oval(cx - 10, cy - 10, cx + 10, cy + 10, fill="#170803", outline="#5f2c0d", width=1)
         self.canvas.create_oval(cx - 4, cy - 4, cx + 4, cy + 4, fill=color, outline="")
+
+    def _build_nodes(self) -> list[dict[str, float]]:
+        nodes: list[dict[str, float]] = []
+        for lat in range(-60, 61, 30):
+            phi = math.radians(lat)
+            ring_count = round(14 * math.cos(phi)) + 7
+            for index in range(ring_count):
+                theta = (index / ring_count) * math.pi * 2
+                nodes.append(
+                    {
+                        "x": math.cos(phi) * math.cos(theta),
+                        "y": math.sin(phi),
+                        "z": math.cos(phi) * math.sin(theta),
+                        "ring": float(lat),
+                        "index": float(index),
+                    }
+                )
+        for index in range(24):
+            angle = index * 2.399963
+            z = 1 - (2 * index + 1) / 24
+            radius = math.sqrt(1 - z * z)
+            nodes.append(
+                {
+                    "x": math.cos(angle) * radius,
+                    "y": math.sin(angle) * radius,
+                    "z": z,
+                    "ring": 999.0,
+                    "index": float(index),
+                }
+            )
+        return nodes
+
+    def _project_nodes(self, cx: float, cy: float, radius: float) -> list[dict[str, float]]:
+        projected: list[dict[str, float]] = []
+        ay = self.frame * 0.038
+        ax = math.sin(self.frame * 0.017) * 0.42 + 0.22
+        focal = 2.35
+        for node in self.nodes:
+            x = node["x"]
+            y = node["y"]
+            z = node["z"]
+            cos_y = math.cos(ay)
+            sin_y = math.sin(ay)
+            x, z = x * cos_y - z * sin_y, x * sin_y + z * cos_y
+            cos_x = math.cos(ax)
+            sin_x = math.sin(ax)
+            y, z = y * cos_x - z * sin_x, y * sin_x + z * cos_x
+            depth = focal / (focal - z)
+            projected.append(
+                {
+                    **node,
+                    "px": cx + x * radius * depth,
+                    "py": cy + y * radius * depth,
+                    "rz": z,
+                    "depth": depth,
+                }
+            )
+        return projected
+
+    def _shade(self, color: str, alpha: float) -> str:
+        color = color.lstrip("#")
+        red = int(color[0:2], 16)
+        green = int(color[2:4], 16)
+        blue = int(color[4:6], 16)
+        mix = max(0.0, min(1.0, alpha))
+        red = int(red * mix)
+        green = int(green * mix)
+        blue = int(blue * mix)
+        return f"#{red:02x}{green:02x}{blue:02x}"
 
 
 if __name__ == "__main__":

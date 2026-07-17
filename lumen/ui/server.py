@@ -108,6 +108,7 @@ INDEX_HTML = """<!doctype html>
       <div class="hud hud-bottom"></div>
       <div class="scope" aria-hidden="true">
         <div class="sphere">
+          <canvas id="frameworkCanvas" class="sigil-canvas"></canvas>
           <span class="axis axis-a"></span>
           <span class="axis axis-b"></span>
           <span class="axis axis-c"></span>
@@ -148,6 +149,7 @@ INDEX_HTML = """<!doctype html>
   </main>
   <aside id="presence" class="presence idle" aria-live="polite">
     <div class="presence-orb">
+      <canvas id="presenceCanvas" class="presence-canvas"></canvas>
       <span></span><span></span><span></span>
     </div>
     <div class="presence-copy">
@@ -290,6 +292,15 @@ body {
   isolation: isolate;
 }
 
+.sigil-canvas {
+  position: absolute;
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  z-index: 4;
+  mix-blend-mode: screen;
+}
+
 .sphere::before,
 .sphere::after {
   content: "";
@@ -398,6 +409,7 @@ body {
     conic-gradient(from 0deg, transparent, rgba(255, 236, 156, 0.9), transparent 35%, rgba(255, 97, 24, 0.85), transparent 70%);
   box-shadow: 0 0 38px rgba(255, 202, 87, 0.98), 0 0 116px rgba(255, 89, 21, 0.78);
   animation: nucleus 1.9s ease-in-out infinite;
+  z-index: 5;
 }
 
 .readout {
@@ -512,6 +524,14 @@ h1 {
     conic-gradient(from 20deg, transparent, rgba(255, 164, 64, 0.9), transparent 44%, rgba(255, 98, 25, 0.76), transparent 78%);
   box-shadow: 0 0 28px rgba(255, 128, 32, 0.68), inset 0 0 18px rgba(255, 193, 91, 0.16);
   animation: orbit 5.5s linear infinite;
+}
+
+.presence-canvas {
+  position: absolute;
+  inset: -18%;
+  width: 136%;
+  height: 136%;
+  mix-blend-mode: screen;
 }
 
 .presence-orb span {
@@ -641,6 +661,9 @@ const transcript = document.getElementById("transcript");
 const stateLabel = document.getElementById("stateLabel");
 const stateHint = document.getElementById("stateHint");
 const stateReadout = document.getElementById("stateReadout");
+const frameworkCanvas = document.getElementById("frameworkCanvas");
+const presenceCanvas = document.getElementById("presenceCanvas");
+let activeState = "idle";
 
 const labels = {
   idle: ["Idle", "Waiting"],
@@ -656,6 +679,7 @@ async function refresh() {
     const response = await fetch("/state", { cache: "no-store" });
     const state = await response.json();
     const name = state.state || "idle";
+    activeState = name;
     presence.className = `presence ${name}`;
     message.textContent = state.message || "Lumen is awake.";
     detail.textContent = state.detail || "Waiting for a command.";
@@ -672,6 +696,170 @@ async function refresh() {
   }
 }
 
+const palette = {
+  idle: [255, 154, 53],
+  listening: [255, 193, 92],
+  thinking: [255, 143, 45],
+  acting: [255, 111, 31],
+  speaking: [255, 209, 124],
+  error: [255, 102, 95]
+};
+
+function buildNodes() {
+  const nodes = [];
+  for (let lat = -60; lat <= 60; lat += 20) {
+    const phi = lat * Math.PI / 180;
+    const ringCount = Math.round(18 * Math.cos(phi)) + 8;
+    for (let i = 0; i < ringCount; i++) {
+      const theta = (i / ringCount) * Math.PI * 2;
+      nodes.push({
+        x: Math.cos(phi) * Math.cos(theta),
+        y: Math.sin(phi),
+        z: Math.cos(phi) * Math.sin(theta),
+        ring: lat,
+        index: i,
+        ringCount
+      });
+    }
+  }
+  for (let i = 0; i < 38; i++) {
+    const a = i * 2.399963;
+    const z = 1 - (2 * i + 1) / 38;
+    const r = Math.sqrt(1 - z * z);
+    nodes.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, z, ring: 999, index: i, ringCount: 38 });
+  }
+  return nodes;
+}
+
+const nodes = buildNodes();
+
+function rotatePoint(point, time, compact) {
+  const speed = compact ? 0.0018 : 0.0011;
+  const ay = time * speed;
+  const ax = Math.sin(time * 0.00042) * 0.42 + 0.22;
+  const az = Math.cos(time * 0.00031) * 0.18;
+  let x = point.x;
+  let y = point.y;
+  let z = point.z;
+
+  let cy = Math.cos(ay), sy = Math.sin(ay);
+  [x, z] = [x * cy - z * sy, x * sy + z * cy];
+  let cx = Math.cos(ax), sx = Math.sin(ax);
+  [y, z] = [y * cx - z * sx, y * sx + z * cx];
+  let cz = Math.cos(az), sz = Math.sin(az);
+  [x, y] = [x * cz - y * sz, x * sz + y * cz];
+  return { x, y, z };
+}
+
+function rgba(rgb, alpha) {
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+}
+
+function drawSigil(canvas, time, compact = false) {
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.floor(rect.width * dpr));
+  const height = Math.max(1, Math.floor(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  const rgb = palette[activeState] || palette.idle;
+  const radius = Math.min(width, height) * (compact ? 0.3 : 0.34);
+  const focal = compact ? 2.25 : 2.65;
+  const projected = nodes.map((node) => {
+    const p = rotatePoint(node, time, compact);
+    const depth = focal / (focal - p.z);
+    return {
+      ...node,
+      rx: p.x * radius * depth,
+      ry: p.y * radius * depth,
+      rz: p.z,
+      depth
+    };
+  });
+
+  const shell = ctx.createRadialGradient(0, 0, radius * 0.05, 0, 0, radius * 1.22);
+  shell.addColorStop(0, rgba(rgb, 0.18));
+  shell.addColorStop(0.48, rgba(rgb, 0.05));
+  shell.addColorStop(1, rgba(rgb, 0.0));
+  ctx.fillStyle = shell;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 1.24, 0, Math.PI * 2);
+  ctx.fill();
+
+  const edges = [];
+  for (let i = 0; i < projected.length; i++) {
+    const a = projected[i];
+    for (let j = i + 1; j < projected.length; j++) {
+      const b = projected[j];
+      const sameRing = a.ring === b.ring && Math.abs(a.index - b.index) <= 1;
+      const near = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < (compact ? 0.42 : 0.36);
+      if (sameRing || near) {
+        edges.push([a, b, (a.rz + b.rz) / 2]);
+      }
+    }
+  }
+  edges.sort((a, b) => a[2] - b[2]);
+
+  for (const [a, b, z] of edges.slice(0, compact ? 220 : 360)) {
+    const alpha = Math.max(0.05, Math.min(0.38, (z + 1.4) / 5));
+    ctx.strokeStyle = rgba(rgb, alpha);
+    ctx.lineWidth = Math.max(0.65, (compact ? 0.9 : 1.1) * Math.max(a.depth, b.depth));
+    ctx.beginPath();
+    ctx.moveTo(a.rx, a.ry);
+    ctx.lineTo(b.rx, b.ry);
+    ctx.stroke();
+  }
+
+  const sortedNodes = [...projected].sort((a, b) => a.rz - b.rz);
+  for (const p of sortedNodes) {
+    const alpha = Math.max(0.18, Math.min(0.95, (p.rz + 1.2) / 2.2));
+    const nodeRadius = (compact ? 1.5 : 2.3) * p.depth;
+    ctx.fillStyle = rgba(rgb, alpha);
+    ctx.beginPath();
+    ctx.arc(p.rx, p.ry, nodeRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.rotate(time * (0.00032 + i * 0.00011) + i * 1.1);
+    ctx.scale(1, 0.34 + i * 0.17);
+    ctx.strokeStyle = rgba(rgb, 0.24 - i * 0.04);
+    ctx.lineWidth = compact ? 1 : 1.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * (0.72 + i * 0.18), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.23);
+  core.addColorStop(0, "rgba(255, 253, 214, 0.98)");
+  core.addColorStop(0.34, rgba(rgb, 0.88));
+  core.addColorStop(1, rgba(rgb, 0));
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.24, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function animateSigils(time) {
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const t = reduced ? 1200 : time;
+  drawSigil(frameworkCanvas, t, false);
+  drawSigil(presenceCanvas, t, true);
+  if (!reduced) requestAnimationFrame(animateSigils);
+}
+
 refresh();
 setInterval(refresh, 650);
+requestAnimationFrame(animateSigils);
 """
