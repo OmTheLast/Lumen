@@ -197,31 +197,9 @@ class _OverlayRenderer:
             shade = self._shade(color, max(0.18, min(0.72, (z + 1.25) / 2.7)))
             self.canvas.create_line(a["px"], a["py"], b["px"], b["py"], fill=shade, width=1)
 
-        self.canvas.create_oval(
-            cx - outer * 0.74,
-            cy - outer * 0.74,
-            cx + outer * 0.74,
-            cy + outer * 0.74,
-            outline="#7d3b11",
-            width=1,
-        )
-        self.canvas.create_oval(
-            cx - outer * 0.48,
-            cy - outer * 0.48,
-            cx + outer * 0.48,
-            cy + outer * 0.48,
-            outline="#a65318",
-            width=1,
-        )
-        self.canvas.create_oval(
-            cx - 11,
-            cy - 11,
-            cx + 11,
-            cy + 11,
-            fill=color,
-            outline="#ffd89a",
-            width=1,
-        )
+        self._draw_projected_ring(cx, cy, outer, color, 0.74, "xy")
+        self._draw_projected_ring(cx, cy, outer, color, 0.48, "xz")
+        self._draw_core(cx, cy, outer, color)
 
         for point in sorted(projected, key=lambda item: item["rz"]):
             alpha = max(0.26, min(1.0, (point["rz"] + 1.2) / 2.2))
@@ -268,30 +246,93 @@ class _OverlayRenderer:
 
     def _project_nodes(self, cx: float, cy: float, radius: float) -> list[dict[str, float]]:
         projected: list[dict[str, float]] = []
-        ay = self.frame * 0.038
-        ax = math.sin(self.frame * 0.017) * 0.42 + 0.22
-        focal = 2.35
         for node in self.nodes:
-            x = node["x"]
-            y = node["y"]
-            z = node["z"]
-            cos_y = math.cos(ay)
-            sin_y = math.sin(ay)
-            x, z = x * cos_y - z * sin_y, x * sin_y + z * cos_y
-            cos_x = math.cos(ax)
-            sin_x = math.sin(ax)
-            y, z = y * cos_x - z * sin_x, y * sin_x + z * cos_x
-            depth = focal / (focal - z)
+            point = self._project_point(node, cx, cy, radius)
             projected.append(
                 {
                     **node,
-                    "px": cx + x * radius * depth,
-                    "py": cy + y * radius * depth,
-                    "rz": z,
-                    "depth": depth,
+                    "px": point["px"],
+                    "py": point["py"],
+                    "rz": point["rz"],
+                    "depth": point["depth"],
                 }
             )
         return projected
+
+    def _project_point(self, node: dict[str, float], cx: float, cy: float, radius: float) -> dict[str, float]:
+        ay = self.frame * 0.038
+        ax = math.sin(self.frame * 0.017) * 0.42 + 0.22
+        az = math.cos(self.frame * 0.013) * 0.16
+        focal = 2.35
+        x = node["x"]
+        y = node["y"]
+        z = node["z"]
+        cos_y = math.cos(ay)
+        sin_y = math.sin(ay)
+        x, z = x * cos_y - z * sin_y, x * sin_y + z * cos_y
+        cos_x = math.cos(ax)
+        sin_x = math.sin(ax)
+        y, z = y * cos_x - z * sin_x, y * sin_x + z * cos_x
+        cos_z = math.cos(az)
+        sin_z = math.sin(az)
+        x, y = x * cos_z - y * sin_z, x * sin_z + y * cos_z
+        depth = focal / (focal - z)
+        return {"px": cx + x * radius * depth, "py": cy + y * radius * depth, "rz": z, "depth": depth}
+
+    def _draw_projected_ring(self, cx: float, cy: float, radius: float, color: str, scale: float, plane: str) -> None:
+        points: list[dict[str, float]] = []
+        for index in range(73):
+            angle = (index / 72) * math.pi * 2
+            wobble = 0.04 * math.sin(angle * 3 + self.frame * 0.06)
+            node = {"x": 0.0, "y": 0.0, "z": 0.0}
+            if plane == "xy":
+                node["x"] = math.cos(angle) * scale
+                node["y"] = math.sin(angle) * scale * (0.7 + wobble)
+                node["z"] = math.sin(angle * 2 + self.frame * 0.04) * 0.08
+            else:
+                node["x"] = math.cos(angle) * scale
+                node["y"] = math.sin(angle * 2 + self.frame * 0.03) * 0.08
+                node["z"] = math.sin(angle) * scale * (0.64 + wobble)
+            points.append(self._project_point(node, cx, cy, radius))
+        for start, end in zip(points, points[1:]):
+            shade = self._shade(color, max(0.24, min(0.78, (start["rz"] + end["rz"] + 2.0) / 4.8)))
+            self.canvas.create_line(start["px"], start["py"], end["px"], end["py"], fill=shade, width=1)
+
+    def _draw_core(self, cx: float, cy: float, radius: float, color: str) -> None:
+        orbit = {
+            "x": math.sin(self.frame * 0.092) * 0.16 + 0.06,
+            "y": math.cos(self.frame * 0.111) * 0.11,
+            "z": math.sin(self.frame * 0.133) * 0.18,
+        }
+        core = self._project_point(orbit, cx, cy, radius)
+        glow = 9 * core["depth"]
+        self.canvas.create_oval(
+            core["px"] - glow * 2.4,
+            core["py"] - glow * 2.4,
+            core["px"] + glow * 2.4,
+            core["py"] + glow * 2.4,
+            fill=self._shade(color, 0.35),
+            outline="",
+        )
+        self.canvas.create_oval(
+            core["px"] - glow,
+            core["py"] - glow,
+            core["px"] + glow,
+            core["py"] + glow,
+            fill=color,
+            outline="#ffd89a",
+            width=1,
+        )
+        for index in range(5):
+            angle = self.frame * 0.16 + index * 1.26
+            node = {
+                "x": orbit["x"] + math.cos(angle) * 0.09,
+                "y": orbit["y"] + math.sin(angle * 1.2) * 0.07,
+                "z": orbit["z"] + math.sin(angle) * 0.08,
+            }
+            point = self._project_point(node, cx, cy, radius)
+            self.canvas.create_line(core["px"], core["py"], point["px"], point["py"], fill=self._shade(color, 0.5), width=1)
+            self.canvas.create_oval(point["px"] - 1.7, point["py"] - 1.7, point["px"] + 1.7, point["py"] + 1.7, fill="#ffd89a", outline="")
 
     def _shade(self, color: str, alpha: float) -> str:
         color = color.lstrip("#")

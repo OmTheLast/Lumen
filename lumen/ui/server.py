@@ -156,10 +156,6 @@ INDEX_HTML = """<!doctype html>
           <span class="scaffold scaffold-a"></span>
           <span class="scaffold scaffold-b"></span>
           <span class="scaffold scaffold-c"></span>
-          <span class="core-ring core-ring-a"></span>
-          <span class="core-ring core-ring-b"></span>
-          <span class="core-slice core-slice-a"></span>
-          <span class="core-slice core-slice-b"></span>
           <span class="axis axis-a"></span>
           <span class="axis axis-b"></span>
           <span class="axis axis-c"></span>
@@ -175,7 +171,6 @@ INDEX_HTML = """<!doctype html>
           <span class="spark spark-b"></span>
           <span class="spark spark-c"></span>
           <span class="spark spark-d"></span>
-          <span class="nucleus"></span>
         </div>
       </div>
       <div class="readout readout-left">
@@ -348,6 +343,9 @@ body {
     radial-gradient(circle at 44% 48%, rgba(255, 112, 29, 0.24), transparent 28%),
     radial-gradient(circle, transparent 54%, rgba(255, 131, 35, 0.13) 55%, transparent 71%);
   box-shadow: inset 0 0 64px rgba(255, 102, 25, 0.18), 0 0 74px rgba(255, 115, 24, 0.22);
+  transform: rotateX(0deg) rotateY(0deg) scale(1);
+  transform-style: preserve-3d;
+  transition: transform 120ms ease-out;
   animation: spherePulse 4.4s ease-in-out infinite;
   isolation: isolate;
 }
@@ -912,8 +910,8 @@ h1 {
 }
 
 @keyframes spherePulse {
-  0%, 100% { transform: scale(0.985); opacity: 0.9; }
-  50% { transform: scale(1.015); opacity: 1; }
+  0%, 100% { opacity: 0.9; filter: saturate(0.92); }
+  50% { opacity: 1; filter: saturate(1.14); }
 }
 
 @keyframes rotateSlow {
@@ -989,6 +987,7 @@ const stateReadout = document.getElementById("stateReadout");
 const frameworkCanvas = document.getElementById("frameworkCanvas");
 const presenceCanvas = document.getElementById("presenceCanvas");
 const framework = document.querySelector(".framework");
+const sphere = document.querySelector(".sphere");
 const chatLog = document.getElementById("chatLog");
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
@@ -1068,9 +1067,9 @@ const nodes = buildNodes();
 
 function rotatePoint(point, time, compact) {
   const speed = compact ? 0.0018 : 0.0011;
-  const ay = time * speed + (compact ? pointer.x * 0.45 : pointer.x * 0.9);
-  const ax = Math.sin(time * 0.00042) * 0.42 + 0.22 + (compact ? pointer.y * 0.22 : pointer.y * 0.55);
-  const az = Math.cos(time * 0.00031) * 0.18;
+  const ay = time * speed + (compact ? pointer.x * 0.6 : pointer.x * 1.45);
+  const ax = Math.sin(time * 0.00042) * 0.42 + 0.22 + (compact ? pointer.y * 0.34 : pointer.y * 0.95);
+  const az = Math.cos(time * 0.00031) * 0.18 + (compact ? pointer.x * pointer.y * 0.08 : pointer.x * pointer.y * 0.2);
   let x = point.x;
   let y = point.y;
   let z = point.z;
@@ -1082,6 +1081,17 @@ function rotatePoint(point, time, compact) {
   let cz = Math.cos(az), sz = Math.sin(az);
   [x, y] = [x * cz - y * sz, x * sz + y * cz];
   return { x, y, z };
+}
+
+function projectOrbitPoint(point, time, compact, radius, focal) {
+  const p = rotatePoint(point, time, compact);
+  const depth = focal / (focal - p.z);
+  return {
+    x: p.x * radius * depth,
+    y: p.y * radius * depth,
+    z: p.z,
+    depth
+  };
 }
 
 function rgba(rgb, alpha) {
@@ -1107,14 +1117,13 @@ function drawSigil(canvas, time, compact = false) {
   const radius = Math.min(width, height) * (compact ? 0.3 : 0.34);
   const focal = compact ? 2.25 : 2.65;
   const projected = nodes.map((node) => {
-    const p = rotatePoint(node, time, compact);
-    const depth = focal / (focal - p.z);
+    const p = projectOrbitPoint(node, time, compact, radius, focal);
     return {
       ...node,
-      rx: p.x * radius * depth,
-      ry: p.y * radius * depth,
+      rx: p.x,
+      ry: p.y,
       rz: p.z,
-      depth
+      depth: p.depth
     };
   });
 
@@ -1161,17 +1170,9 @@ function drawSigil(canvas, time, compact = false) {
     ctx.fill();
   }
 
-  for (let i = 0; i < 3; i++) {
-    ctx.save();
-    ctx.rotate(time * (0.00032 + i * 0.00011) + i * 1.1);
-    ctx.scale(1, 0.34 + i * 0.17);
-    ctx.strokeStyle = rgba(rgb, 0.24 - i * 0.04);
-    ctx.lineWidth = compact ? 1 : 1.4;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * (0.72 + i * 0.18), 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
+  drawProjectedRing(ctx, time, compact, radius, focal, rgb, 0.84, "xy", 0.24);
+  drawProjectedRing(ctx, time + 420, compact, radius, focal, rgb, 0.68, "xz", 0.21);
+  drawProjectedRing(ctx, time + 860, compact, radius, focal, rgb, 0.52, "yz", 0.18);
 
   if (!compact) {
     for (let i = 0; i < 5; i++) {
@@ -1213,15 +1214,78 @@ function drawSigil(canvas, time, compact = false) {
     }
   }
 
-  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.23);
-  core.addColorStop(0, "rgba(255, 253, 214, 0.98)");
-  core.addColorStop(0.34, rgba(rgb, 0.88));
-  core.addColorStop(1, rgba(rgb, 0));
-  ctx.fillStyle = core;
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.24, 0, Math.PI * 2);
-  ctx.fill();
+  drawProjectedCore(ctx, time, compact, radius, focal, rgb);
   ctx.restore();
+}
+
+function drawProjectedRing(ctx, time, compact, radius, focal, rgb, scale, plane, alpha) {
+  const points = [];
+  const count = compact ? 72 : 112;
+  for (let i = 0; i <= count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    const wobble = 0.04 * Math.sin(a * 3 + time * 0.001);
+    const base = { x: 0, y: 0, z: 0 };
+    if (plane === "xy") {
+      base.x = Math.cos(a) * scale;
+      base.y = Math.sin(a) * scale * (0.7 + wobble);
+      base.z = Math.sin(a * 2 + time * 0.0007) * 0.08;
+    } else if (plane === "xz") {
+      base.x = Math.cos(a) * scale;
+      base.y = Math.sin(a * 2 + time * 0.0005) * 0.08;
+      base.z = Math.sin(a) * scale * (0.64 + wobble);
+    } else {
+      base.x = Math.sin(a * 2 + time * 0.0004) * 0.08;
+      base.y = Math.cos(a) * scale * (0.66 + wobble);
+      base.z = Math.sin(a) * scale;
+    }
+    points.push(projectOrbitPoint(base, time, compact, radius, focal));
+  }
+  ctx.strokeStyle = rgba(rgb, alpha);
+  ctx.lineWidth = compact ? 0.9 : 1.25;
+  ctx.beginPath();
+  for (const [index, point] of points.entries()) {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  }
+  ctx.stroke();
+}
+
+function drawProjectedCore(ctx, time, compact, radius, focal, rgb) {
+  const orbit = {
+    x: Math.sin(time * 0.0011) * 0.16 + 0.06,
+    y: Math.cos(time * 0.00135) * 0.11,
+    z: Math.sin(time * 0.0016) * 0.18
+  };
+  const core = projectOrbitPoint(orbit, time, compact, radius, focal);
+  const coreRadius = radius * (compact ? 0.11 : 0.15) * core.depth;
+  const glow = ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, coreRadius * 2.2);
+  glow.addColorStop(0, "rgba(255, 253, 214, 0.98)");
+  glow.addColorStop(0.22, rgba(rgb, 0.86));
+  glow.addColorStop(1, rgba(rgb, 0));
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(core.x, core.y, coreRadius * 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < (compact ? 5 : 9); i++) {
+    const a = time * 0.002 + i * 0.72;
+    const node = {
+      x: orbit.x + Math.cos(a) * (0.09 + (i % 3) * 0.018),
+      y: orbit.y + Math.sin(a * 1.21) * 0.07,
+      z: orbit.z + Math.sin(a) * 0.08
+    };
+    const p = projectOrbitPoint(node, time + i * 80, compact, radius, focal);
+    ctx.strokeStyle = rgba(rgb, 0.34);
+    ctx.lineWidth = compact ? 0.8 : 1.2;
+    ctx.beginPath();
+    ctx.moveTo(core.x, core.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.fillStyle = i % 2 === 0 ? "#fff5bf" : rgba(rgb, 0.88);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (compact ? 1.4 : 2.2) * p.depth, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function animateSigils(time) {
@@ -1229,6 +1293,10 @@ function animateSigils(time) {
   pointer.y += (pointer.ty - pointer.y) * 0.08;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const t = reduced ? 1200 : time;
+  if (sphere) {
+    const pulse = reduced ? 1 : 1 + Math.sin(t * 0.0022) * 0.018;
+    sphere.style.transform = `rotateX(${(-pointer.y * 13).toFixed(2)}deg) rotateY(${(pointer.x * 17).toFixed(2)}deg) scale(${pulse.toFixed(3)})`;
+  }
   drawSigil(frameworkCanvas, t, false);
   drawSigil(presenceCanvas, t, true);
   if (!reduced) requestAnimationFrame(animateSigils);
