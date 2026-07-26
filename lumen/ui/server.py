@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import urlparse
 import webbrowser
 
+from lumen.config import Config
+from lumen.models import discover_models
 from lumen.ui.state import ChatBridge, PresenceState
 
 
@@ -19,9 +21,12 @@ class PresenceServer:
         host: str = "127.0.0.1",
         port: int = 8765,
         chat_bridge: ChatBridge | None = None,
+        config: Config | None = None,
     ) -> None:
         self.state = state
         self.chat_bridge = chat_bridge or ChatBridge()
+        self.config = config or Config()
+        self._config_lock = threading.Lock()
         self.host = host
         self.port = port
         self._server: ThreadingHTTPServer | None = None
@@ -59,6 +64,8 @@ class PresenceServer:
     def _make_handler(self) -> type[BaseHTTPRequestHandler]:
         presence = self.state
         chat_bridge = self.chat_bridge
+        config = self.config
+        config_lock = self._config_lock
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
@@ -78,6 +85,10 @@ class PresenceServer:
                 if route == "/chat":
                     self._send_json(chat_bridge.snapshot())
                     return
+                if route == "/settings":
+                    with config_lock:
+                        self._send_json(discover_models(config))
+                    return
                 self.send_error(404)
 
             def do_POST(self) -> None:
@@ -91,6 +102,16 @@ class PresenceServer:
                     chat_bridge.post_user_message(text)
                     presence.update("thinking", "Command received.", detail=text, transcript=text)
                     self._send_json({"ok": True})
+                    return
+                if route == "/settings":
+                    payload = self._read_json()
+                    with config_lock:
+                        settings = config.update_model_settings(payload)
+                        response = discover_models(config)
+                    response["ok"] = True
+                    response["settings"] = settings
+                    presence.update("idle", "Model settings saved.", detail="Runtime config updated.")
+                    self._send_json(response)
                     return
                 if route == "/voice-note":
                     length = int(self.headers.get("Content-Length", "0") or "0")
@@ -197,6 +218,25 @@ INDEX_HTML = """<!doctype html>
           <strong>Chat / voice</strong>
         </div>
         <div id="chatLog" class="chat-log"></div>
+        <section class="model-panel" aria-label="Model settings">
+          <div class="model-head">
+            <span>models</span>
+            <button type="button" id="refreshModels">Detect</button>
+          </div>
+          <label>
+            <span>Planner</span>
+            <select id="plannerModel"></select>
+          </label>
+          <label>
+            <span>Router</span>
+            <select id="routerModel"></select>
+          </label>
+          <label>
+            <span>Voice STT</span>
+            <select id="voiceModel"></select>
+          </label>
+          <p id="modelStatus" class="model-status">Detecting local models.</p>
+        </section>
         <form id="chatForm" class="chat-form">
           <input id="chatInput" name="message" autocomplete="off" placeholder="Message Lumen..." />
           <button type="button" id="voiceButton" class="voice-button" aria-label="Record voice message">
@@ -380,9 +420,7 @@ body {
 }
 
 .shell,
-.scaffold,
-.core-ring,
-.core-slice {
+.scaffold {
   position: absolute;
   display: block;
   border-radius: 999px;
@@ -427,50 +465,10 @@ body {
 .scaffold-b { transform: rotate(94deg) translateX(-50%); animation-delay: -0.7s; opacity: 0.62; }
 .scaffold-c { transform: rotate(151deg) translateX(-50%); animation-delay: -1.6s; opacity: 0.52; }
 
-.core-ring {
-  inset: 36%;
-  border: 1px solid rgba(255, 224, 143, 0.62);
-  background:
-    repeating-conic-gradient(from 16deg, transparent 0 8deg, rgba(255, 187, 76, 0.4) 8deg 10deg, transparent 10deg 18deg),
-    radial-gradient(circle, transparent 52%, rgba(255, 111, 28, 0.22) 53% 60%, transparent 61%);
-  box-shadow: 0 0 18px rgba(255, 166, 62, 0.48), inset 0 0 22px rgba(255, 97, 24, 0.28);
-  mix-blend-mode: screen;
-  z-index: 5;
-}
-
-.core-ring-a {
-  animation: orbit 3.4s linear infinite;
-}
-
-.core-ring-b {
-  inset: 39%;
-  border-color: rgba(255, 132, 35, 0.52);
-  transform: rotateX(62deg) rotate(18deg);
-  animation: rotateSlow 2.9s linear infinite reverse;
-}
-
-.core-slice {
-  left: 50%;
-  top: 50%;
-  width: 28%;
-  height: 8%;
-  border: 1px solid rgba(255, 196, 91, 0.34);
-  background:
-    linear-gradient(90deg, transparent, rgba(255, 232, 161, 0.2), rgba(255, 136, 38, 0.12), transparent),
-    repeating-linear-gradient(0deg, rgba(255, 199, 91, 0.22) 0 1px, transparent 1px 6px);
-  box-shadow: 0 0 20px rgba(255, 142, 39, 0.3);
-  mix-blend-mode: screen;
-  z-index: 4;
-}
-
-.core-slice-a { transform: translate(-30%, -78%) rotate(4deg); }
-.core-slice-b { transform: translate(-69%, 18%) rotate(-12deg); opacity: 0.72; }
-
 .axis,
 .arc,
 .filament,
-.spark,
-.nucleus {
+.spark {
   position: absolute;
   display: block;
   border-radius: 999px;
@@ -546,38 +544,6 @@ body {
 .spark-b { left: 29%; top: 67%; animation: sparkDrift 6s ease-in-out infinite reverse; }
 .spark-c { left: 52%; top: 18%; animation: sparkDrift 4.2s ease-in-out infinite; }
 .spark-d { left: 83%; top: 56%; animation: sparkDrift 5.4s ease-in-out infinite reverse; opacity: 0.78; }
-
-.nucleus {
-  inset: 42%;
-  background:
-    radial-gradient(circle at 47% 45%, #fffbe2 0 7%, #ffe08e 13%, #ff8a2d 34%, transparent 35%),
-    conic-gradient(from 23deg, rgba(255, 244, 194, 0.95), transparent 18%, rgba(255, 126, 31, 0.92), transparent 44%, rgba(255, 215, 121, 0.78), transparent 71%, rgba(255, 106, 28, 0.88));
-  box-shadow: 0 0 42px rgba(255, 218, 118, 0.98), 0 0 132px rgba(255, 89, 21, 0.78);
-  animation: nucleus 1.9s ease-in-out infinite;
-  z-index: 6;
-}
-
-.nucleus::before,
-.nucleus::after {
-  content: "";
-  position: absolute;
-  inset: -82%;
-  border-radius: inherit;
-  border: 1px solid rgba(255, 231, 155, 0.38);
-  background: repeating-conic-gradient(from 18deg, rgba(255, 207, 104, 0.48) 0 5deg, transparent 5deg 16deg);
-  mix-blend-mode: screen;
-}
-
-.nucleus::before {
-  animation: orbit 2.2s linear infinite;
-}
-
-.nucleus::after {
-  inset: -132%;
-  opacity: 0.58;
-  transform: rotateX(68deg);
-  animation: orbit 3.2s linear infinite reverse;
-}
 
 .readout {
   position: absolute;
@@ -657,7 +623,7 @@ h1 {
   bottom: 116px;
   width: min(330px, calc(100% - 96px));
   display: grid;
-  grid-template-rows: auto minmax(118px, 1fr) auto;
+  grid-template-rows: auto minmax(96px, 1fr) auto auto;
   gap: 12px;
   padding: 14px;
   border: 1px solid rgba(255, 143, 45, 0.24);
@@ -693,6 +659,61 @@ h1 {
   overflow: hidden;
   min-height: 118px;
   max-height: 166px;
+}
+
+.model-panel {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(255, 143, 45, 0.16);
+  background: rgba(8, 4, 2, 0.44);
+}
+
+.model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.model-head span,
+.model-panel label span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.model-head button {
+  min-height: 24px;
+  border: 1px solid rgba(255, 143, 45, 0.24);
+  background: rgba(8, 4, 2, 0.72);
+  color: var(--amber);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.model-panel label {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.model-panel select {
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid rgba(255, 143, 45, 0.22);
+  background: #0b0502;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.model-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .chat-message {
@@ -935,11 +956,6 @@ h1 {
   70% { opacity: 0.38; width: 34%; }
 }
 
-@keyframes nucleus {
-  0%, 100% { transform: scale(0.82); opacity: 0.78; }
-  50% { transform: scale(1.18); opacity: 1; }
-}
-
 @keyframes meter {
   0%, 100% { transform: translateX(-50%) scaleY(0.45); }
   50% { transform: translateX(-50%) scaleY(1.25); }
@@ -955,6 +971,7 @@ h1 {
   .transcript-panel { display: none; }
   .chat-panel { left: 22px; right: 22px; bottom: 90px; width: auto; padding: 10px; gap: 8px; }
   .chat-log { min-height: 48px; max-height: 54px; }
+  .model-panel { display: none; }
   .chat-message { padding: 7px 8px; font-size: 12px; }
   .chat-form { grid-template-columns: minmax(0, 1fr) 38px 54px; }
   .readout-left { left: 22px; top: 28px; }
@@ -992,10 +1009,17 @@ const chatLog = document.getElementById("chatLog");
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 const voiceButton = document.getElementById("voiceButton");
+const refreshModelsButton = document.getElementById("refreshModels");
+const plannerModel = document.getElementById("plannerModel");
+const routerModel = document.getElementById("routerModel");
+const voiceModel = document.getElementById("voiceModel");
+const modelStatus = document.getElementById("modelStatus");
 let activeState = "idle";
 let pointer = { x: 0, y: 0, tx: 0, ty: 0 };
 let mediaRecorder = null;
 let voiceChunks = [];
+let speechRecognition = null;
+let modelSettings = {};
 
 const labels = {
   idle: ["Idle", "Waiting"],
@@ -1355,7 +1379,67 @@ async function sendChatMessage(event) {
   refreshChat();
 }
 
+async function refreshModels() {
+  if (!plannerModel || !routerModel || !voiceModel || !modelStatus) return;
+  try {
+    const response = await fetch("/settings", { cache: "no-store" });
+    const payload = await response.json();
+    modelSettings = payload.settings || {};
+    renderModelSelects(payload.models || [], modelSettings);
+    const providers = payload.providers || {};
+    modelStatus.textContent = `Ollama ${providers.ollama || "unknown"} · LM Studio ${providers.lm_studio || "unknown"}`;
+  } catch {
+    modelStatus.textContent = "Model detection unavailable.";
+  }
+}
+
+function renderModelSelects(models, settings) {
+  const chatModels = models.filter((model) => model.kind === "chat");
+  const voiceModels = models.filter((model) => model.kind === "speech_to_text");
+  populateSelect(plannerModel, chatModels, settings.planner_model);
+  populateSelect(routerModel, chatModels, settings.router_model);
+  populateSelect(voiceModel, voiceModels, settings.voice_stt_model);
+}
+
+function populateSelect(select, models, selected) {
+  const existing = selected && !models.some((model) => model.id === selected)
+    ? [{ id: selected, provider: "configured", label: selected, available: false }]
+    : [];
+  select.innerHTML = [...existing, ...models].map((model) => {
+    const suffix = model.available === false ? " · not detected" : ` · ${model.provider}`;
+    return `<option value="${escapeHtml(model.id)}"${model.id === selected ? " selected" : ""}>${escapeHtml(model.label + suffix)}</option>`;
+  }).join("");
+}
+
+async function saveModelSettings() {
+  if (!plannerModel || !routerModel || !voiceModel || !modelStatus) return;
+  const payload = {
+    planner_model: plannerModel.value,
+    router_model: routerModel.value,
+    voice_stt_model: voiceModel.value
+  };
+  modelStatus.textContent = "Saving model settings.";
+  try {
+    const response = await fetch("/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    modelSettings = result.settings || payload;
+    renderModelSelects(result.models || [], modelSettings);
+    modelStatus.textContent = "Model settings saved.";
+  } catch {
+    modelStatus.textContent = "Model settings could not be saved.";
+  }
+}
+
 async function toggleVoiceMessage() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (Recognition) {
+    toggleLiveSpeechRecognition(Recognition);
+    return;
+  }
   if (mediaRecorder && mediaRecorder.state === "recording") {
     mediaRecorder.stop();
     return;
@@ -1383,16 +1467,66 @@ async function toggleVoiceMessage() {
     refreshChat();
   };
   voiceButton.classList.add("recording");
-  mediaRecorder.start();
+  mediaRecorder.start(500);
+}
+
+function toggleLiveSpeechRecognition(Recognition) {
+  if (speechRecognition) {
+    speechRecognition.stop();
+    return;
+  }
+  speechRecognition = new Recognition();
+  speechRecognition.continuous = false;
+  speechRecognition.interimResults = true;
+  speechRecognition.lang = "en-US";
+  let finalText = "";
+  voiceButton.classList.add("recording");
+  if (modelStatus) modelStatus.textContent = "Live voice recognition active.";
+  speechRecognition.onresult = (event) => {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const text = event.results[i][0].transcript.trim();
+      if (event.results[i].isFinal) finalText += `${text} `;
+      else interim += text;
+    }
+    if (interim) transcript.textContent = interim;
+  };
+  speechRecognition.onend = async () => {
+    const command = finalText.trim();
+    speechRecognition = null;
+    voiceButton.classList.remove("recording");
+    if (command) {
+      await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: command })
+      });
+      transcript.textContent = command;
+      refreshChat();
+      return;
+    }
+    if (modelStatus) modelStatus.textContent = "No voice command detected.";
+  };
+  speechRecognition.onerror = () => {
+    speechRecognition = null;
+    voiceButton.classList.remove("recording");
+    if (modelStatus) modelStatus.textContent = "Live voice recognition failed.";
+  };
+  speechRecognition.start();
 }
 
 refresh();
 refreshChat();
+refreshModels();
 setInterval(refresh, 650);
 setInterval(refreshChat, 1800);
 framework?.addEventListener("pointermove", updatePointer);
 framework?.addEventListener("pointerleave", resetPointer);
 chatForm?.addEventListener("submit", sendChatMessage);
+refreshModelsButton?.addEventListener("click", refreshModels);
+plannerModel?.addEventListener("change", saveModelSettings);
+routerModel?.addEventListener("change", saveModelSettings);
+voiceModel?.addEventListener("change", saveModelSettings);
 voiceButton?.addEventListener("click", () => {
   toggleVoiceMessage().catch(async () => {
     voiceButton.classList.remove("recording");

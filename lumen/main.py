@@ -67,7 +67,7 @@ def main() -> int:
             return 0
 
         if user_input.startswith("/voice"):
-            response = handle_voice_command(user_input, planner, executor, presence)
+            response = handle_voice_command(user_input, planner, executor, presence, config)
             if response:
                 _speak_with_presence(response, presence)
             continue
@@ -145,8 +145,9 @@ def handle_voice_command(
     planner: Planner,
     executor: Executor,
     presence: PresenceState | None = None,
+    config: Config | None = None,
 ) -> str:
-    voice_mode = _parse_voice_command(command)
+    voice_mode = _parse_voice_command(command, config)
     try:
         detail = (
             f"Recording {voice_mode.seconds:g} seconds of audio."
@@ -203,7 +204,7 @@ def _start_presence_ui(config: Config, presence: PresenceState, chat_bridge: Cha
     if not config.ui_enabled:
         return None
 
-    server = PresenceServer(presence, host=config.ui_host, port=config.ui_port, chat_bridge=chat_bridge)
+    server = PresenceServer(presence, host=config.ui_host, port=config.ui_port, chat_bridge=chat_bridge, config=config)
     try:
         server.start(open_browser=config.ui_open_browser)
     except RuntimeError as exc:

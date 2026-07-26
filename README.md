@@ -18,6 +18,25 @@ ollama pull qwen3:latest
 
 Model weights are intentionally not stored in this repository. Keep Ollama, LM Studio, Whisper, and other model caches outside git.
 
+Lumen can detect local chat models from:
+
+- Ollama at `http://localhost:11434`
+- LM Studio's OpenAI-compatible server at `http://localhost:1234`
+
+The web UI includes model selectors for planner, router, and voice transcription models. Saved selections are written to:
+
+```text
+~/.lumen/config.json
+```
+
+Environment variables still override saved settings:
+
+```sh
+LUMEN_PLANNER_MODEL=qwen3.6:27b
+LUMEN_ROUTER_MODEL=qwen3:latest
+LUMEN_VOICE_STT_MODEL=mlx-community/whisper-tiny
+```
+
 ## Run
 
 ```sh
@@ -75,6 +94,8 @@ Then run Lumen and use:
 ```
 
 Lumen records until you stop speaking, transcribes with `mlx-whisper`, executes the command, and speaks the response with macOS `say`.
+
+In browsers that support the Web Speech API, the web UI microphone button uses live browser recognition and sends the recognized command directly to Lumen. That path avoids waiting for a full audio upload before command execution. If live recognition is unavailable, Lumen falls back to the existing browser voice-note upload path.
 
 To force a fixed recording window:
 
