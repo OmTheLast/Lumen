@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Lumen is a local-first desktop agent framework for macOS.">
+  <title>Lumen</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero" aria-label="Lumen project overview">
+      <div class="visual" aria-hidden="true">
+        <canvas id="orb"></canvas>
+      </div>
+      <div class="copy">
+        <p class="eyebrow">Local-first macOS agent</p>
+        <h1>Lumen</h1>
+        <p class="lede">
+          A desktop agent framework that listens, plans, and acts on your computer while keeping the real execution loop local.
+        </p>
+        <div class="actions">
+          <a href="https://github.com/OmTheLast/Lumen">GitHub</a>
+          <a href="#architecture">Architecture</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture" class="grid" aria-label="Architecture notes">
+      <article>
+        <span>01</span>
+        <h2>Local Runtime</h2>
+        <p>The Python agent runs on macOS, talks to local models, and owns desktop tools like apps, browser actions, screenshots, files, and shell commands.</p>
+      </article>
+      <article>
+        <span>02</span>
+        <h2>Model Choice</h2>
+        <p>Lumen can detect Ollama and LM Studio models, then save planner, router, and voice transcription choices in a local config file.</p>
+      </article>
+      <article>
+        <span>03</span>
+        <h2>Web Surface</h2>
+        <p>This Cloudflare Worker hosts the public project page. The private control surface stays bound to the local agent process.</p>
+      </article>
+    </section>
+  </main>
+  <script src="/site.js"></script>
+</body>
+</html>

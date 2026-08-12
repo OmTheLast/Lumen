@@ -110,3 +110,21 @@ LUMEN_VOICE_STT_MODEL=mlx-community/whisper-small-mlx uv run python -m lumen.mai
 ```
 
 The first transcription may take longer while the Whisper model downloads.
+
+## Public Website
+
+The public project site is deployed as a Cloudflare Worker at:
+
+```text
+https://lumen.ompatnaik.com
+```
+
+The Worker serves static assets from `public/` and exposes a basic health endpoint:
+
+```text
+https://lumen.ompatnaik.com/api/health
+```
+
+Local agent features still run on your Mac. Cloudflare hosts the public web presence; it does not run macOS desktop automation, Ollama, or MLX Whisper.
+
+See [docs/cloudflare.md](docs/cloudflare.md) for setup, deploy, GitHub integration, and future-project notes.

@@ -47,3 +47,20 @@ Build a proper tool registry and permission policy layer:
 - Show pending risky actions in the web UI.
 - Allow per-tool approval modes.
 - Add audit logging for executed tools and rejected actions.
+
+## 2026-08-12
+
+### Cloudflare Website Checkpoint
+
+- Installed Wrangler globally.
+- Authenticated Wrangler with Cloudflare account `omexp99@gmail.com`.
+- Accepted Wrangler's Cloudflare agent-skill setup for Codex and other local coding agents.
+- Added Worker configuration for `lumen.ompatnaik.com`.
+- Added a public static site in `public/`.
+- Added Worker API route `/api/health`.
+- Added local npm scripts for Worker development, dry-run validation, and deploy.
+- Deployed Worker version `384c5971-1dea-4384-8ed8-95c8cee17c22`.
+
+### DNS Note
+
+Cloudflare DNS returned A records for `lumen.ompatnaik.com` through `1.1.1.1`, and forced-resolution curl successfully reached the Worker. The local resolver initially still returned NXDOMAIN, likely cached during propagation.
