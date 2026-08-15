@@ -6,7 +6,9 @@ This repo is configured for a Cloudflare Worker at:
 https://lumen.ompatnaik.com
 ```
 
-The deployed Worker hosts the public Lumen website from `public/`. The macOS desktop agent in `lumen/` still runs locally; Cloudflare Workers cannot run macOS automation, local Ollama, MLX Whisper, or desktop app controls.
+The deployed Worker hosts the public Lumen website from `public/`. The site is the install/run hub: it provides copyable commands, serves `/install.sh`, checks for a local Lumen console at `http://127.0.0.1:8765`, and links into that local console when available.
+
+The macOS desktop agent in `lumen/` still runs locally; Cloudflare Workers cannot run macOS automation, local Ollama, MLX Whisper, or desktop app controls.
 
 ## One-Time Local Setup
 

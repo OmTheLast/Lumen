@@ -1,5 +1,56 @@
 const canvas = document.getElementById("orb");
+const statusCard = document.querySelector(".status-card");
+const localState = document.getElementById("localState");
+const localDetail = document.getElementById("localDetail");
+const checkLocal = document.getElementById("checkLocal");
+const openLocal = document.getElementById("openLocal");
+const toast = document.getElementById("toast");
 const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+
+function showToast(message) {
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("visible");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => toast.classList.remove("visible"), 2200);
+}
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast("Copied to clipboard.");
+  } catch {
+    showToast("Copy failed. Select the command manually.");
+  }
+}
+
+async function checkLocalLumen() {
+  if (!statusCard || !localState || !localDetail || !openLocal) return;
+  localState.textContent = "Checking";
+  localDetail.textContent = "Looking for Lumen at 127.0.0.1:8765.";
+  statusCard.classList.remove("online", "offline");
+  openLocal.setAttribute("aria-disabled", "true");
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 900);
+  try {
+    const response = await fetch("http://127.0.0.1:8765/state", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const state = await response.json();
+    window.clearTimeout(timeout);
+    statusCard.classList.add("online");
+    localState.textContent = "Online";
+    localDetail.textContent = state.message || "Local Lumen console is running.";
+    openLocal.removeAttribute("aria-disabled");
+  } catch {
+    window.clearTimeout(timeout);
+    statusCard.classList.add("offline");
+    localState.textContent = "Offline";
+    localDetail.textContent = "Start Lumen locally, then check again.";
+  }
+}
 
 function rgba(alpha) {
   return `rgba(255, 143, 45, ${alpha})`;
@@ -129,4 +180,17 @@ window.addEventListener("pointermove", (event) => {
   pointer.ty = (event.clientY / window.innerHeight - 0.5) * 2;
 });
 
+document.querySelectorAll("[data-copy]").forEach((button) => {
+  button.addEventListener("click", () => copyText(button.dataset.copy || ""));
+});
+
+checkLocal?.addEventListener("click", checkLocalLumen);
+openLocal?.addEventListener("click", (event) => {
+  if (openLocal.getAttribute("aria-disabled") === "true") {
+    event.preventDefault();
+    showToast("Start Lumen locally first.");
+  }
+});
+
+checkLocalLumen();
 requestAnimationFrame(draw);

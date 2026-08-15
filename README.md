@@ -119,12 +119,12 @@ The public project site is deployed as a Cloudflare Worker at:
 https://lumen.ompatnaik.com
 ```
 
-The Worker serves static assets from `public/` and exposes a basic health endpoint:
+The Worker serves static assets from `public/`, exposes a basic health endpoint, and acts as the install/run hub for Lumen:
 
 ```text
 https://lumen.ompatnaik.com/api/health
 ```
 
-Local agent features still run on your Mac. Cloudflare hosts the public web presence; it does not run macOS desktop automation, Ollama, or MLX Whisper.
+The hub can copy install/run commands, serve an install helper at `/install.sh`, check whether the local Lumen console is running at `http://127.0.0.1:8765`, and open that local console. Local agent features still run on your Mac. Cloudflare hosts the public web presence; it does not run macOS desktop automation, Ollama, or MLX Whisper.
 
 See [docs/cloudflare.md](docs/cloudflare.md) for setup, deploy, GitHub integration, and future-project notes.

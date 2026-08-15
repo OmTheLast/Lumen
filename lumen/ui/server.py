@@ -68,6 +68,11 @@ class PresenceServer:
         config_lock = self._config_lock
 
         class Handler(BaseHTTPRequestHandler):
+            def do_OPTIONS(self) -> None:
+                self.send_response(204)
+                self._send_cors_headers()
+                self.end_headers()
+
             def do_GET(self) -> None:
                 route = urlparse(self.path).path
                 if route == "/":
@@ -129,6 +134,7 @@ class PresenceServer:
                 encoded = body.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
+                self._send_cors_headers()
                 self.send_header("Content-Length", str(len(encoded)))
                 self.end_headers()
                 self.wfile.write(encoded)
@@ -147,9 +153,16 @@ class PresenceServer:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
+                self._send_cors_headers()
                 self.send_header("Content-Length", str(len(encoded)))
                 self.end_headers()
                 self.wfile.write(encoded)
+
+            def _send_cors_headers(self) -> None:
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Allow-Private-Network", "true")
 
         return Handler
 

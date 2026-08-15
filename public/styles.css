@@ -1,12 +1,16 @@
 :root {
   color-scheme: dark;
   --bg: #050302;
+  --panel: rgba(11, 5, 2, 0.72);
+  --panel-strong: rgba(21, 9, 3, 0.82);
   --text: #fff0dc;
   --muted: #c19a72;
   --line: rgba(255, 147, 45, 0.24);
   --orange: #ff8f2d;
   --amber: #ffc35b;
   --ember: #ff5d1f;
+  --ok: #8dffb0;
+  --bad: #ff8277;
 }
 
 * {
@@ -21,7 +25,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 50% 38%, rgba(255, 143, 45, 0.18), transparent 34%),
+    radial-gradient(circle at 50% 32%, rgba(255, 143, 45, 0.18), transparent 34%),
     linear-gradient(90deg, rgba(255, 143, 45, 0.045) 1px, transparent 1px),
     linear-gradient(0deg, rgba(255, 143, 45, 0.04) 1px, transparent 1px),
     #050302;
@@ -30,8 +34,42 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-a {
+a,
+button {
   color: inherit;
+}
+
+button,
+.button,
+.status-actions a {
+  min-height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: rgba(15, 7, 3, 0.76);
+  color: var(--amber);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+button:hover,
+.button:hover,
+.status-actions a:hover {
+  border-color: rgba(255, 195, 91, 0.6);
+  background: rgba(59, 24, 6, 0.72);
+}
+
+.button {
+  min-width: 132px;
+}
+
+.button.primary {
+  background: linear-gradient(135deg, rgba(255, 143, 45, 0.92), rgba(255, 93, 31, 0.72));
+  color: #160702;
+  font-weight: 700;
 }
 
 .shell {
@@ -41,9 +79,11 @@ a {
 
 .hero {
   position: relative;
-  min-height: 88vh;
+  min-height: 90vh;
   display: grid;
-  place-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
+  align-items: end;
+  gap: 40px;
   padding: 48px;
   isolation: isolate;
 }
@@ -72,9 +112,7 @@ a {
 }
 
 .copy {
-  width: min(760px, 100%);
-  margin-right: auto;
-  align-self: end;
+  width: min(780px, 100%);
   padding-bottom: 10vh;
 }
 
@@ -95,45 +133,89 @@ h1 {
 }
 
 .lede {
-  max-width: 650px;
+  max-width: 720px;
   margin: 28px 0 0;
   color: #ffe0b2;
   font-size: clamp(21px, 3vw, 34px);
   line-height: 1.12;
 }
 
-.actions {
+.actions,
+.status-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 30px;
 }
 
-.actions a {
-  min-width: 132px;
-  min-height: 42px;
-  display: inline-grid;
-  place-items: center;
+.status-card,
+article,
+.install-panel {
   border: 1px solid var(--line);
-  background: rgba(15, 7, 3, 0.72);
-  color: var(--amber);
-  text-decoration: none;
-  text-transform: uppercase;
-  font-size: 13px;
+  background: var(--panel);
+  box-shadow: inset 0 0 38px rgba(255, 111, 31, 0.08), 0 24px 70px rgba(0, 0, 0, 0.22);
 }
 
-.grid {
+.status-card {
+  align-self: center;
+  padding: 20px;
+  backdrop-filter: blur(18px);
+}
+
+.status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 147, 45, 0.18);
+  padding-bottom: 13px;
+}
+
+.status-head span {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.status-head strong {
+  color: var(--amber);
+}
+
+.status-card.online .status-head strong {
+  color: var(--ok);
+}
+
+.status-card.offline .status-head strong {
+  color: var(--bad);
+}
+
+.status-card p,
+article p,
+.install-panel p {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.status-actions a[aria-disabled="true"] {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.panel-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  padding: 0 48px 64px;
+  padding: 0 48px 48px;
 }
 
 article {
   min-height: 230px;
   padding: 24px;
-  border: 1px solid var(--line);
-  background: rgba(11, 5, 2, 0.68);
+}
+
+article.wide {
+  grid-column: 1 / -1;
 }
 
 article span {
@@ -142,31 +224,100 @@ article span {
 }
 
 h2 {
-  margin: 34px 0 12px;
-  font-size: 24px;
-  line-height: 1.05;
+  margin: 30px 0 12px;
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 1.02;
+  letter-spacing: 0;
 }
 
-article p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.5;
+article:not(.wide) h2 {
+  font-size: 26px;
 }
 
-@media (max-width: 760px) {
+.command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.command-row.compact {
+  grid-template-columns: minmax(0, 1fr) 76px;
+}
+
+code {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 147, 45, 0.18);
+  background: rgba(4, 2, 1, 0.82);
+  color: #ffe7bc;
+  padding: 0 12px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.note {
+  margin-top: 14px;
+}
+
+.install-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 28px;
+  margin: 0 48px 64px;
+  padding: 28px;
+}
+
+.steps {
+  display: grid;
+  align-content: center;
+}
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  max-width: min(360px, calc(100vw - 36px));
+  border: 1px solid rgba(255, 147, 45, 0.28);
+  background: rgba(12, 5, 2, 0.92);
+  color: var(--amber);
+  padding: 12px 14px;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 860px) {
   .hero {
-    min-height: 760px;
+    min-height: 820px;
+    grid-template-columns: 1fr;
+    align-items: end;
     padding: 28px;
   }
 
   .copy {
-    padding-bottom: 80px;
+    padding-bottom: 0;
   }
 
-  .grid {
+  .panel-grid,
+  .install-panel {
     grid-template-columns: 1fr;
     padding: 0 20px 40px;
+    margin: 0;
+  }
+
+  .command-row,
+  .command-row.compact {
+    grid-template-columns: 1fr;
   }
 }
 

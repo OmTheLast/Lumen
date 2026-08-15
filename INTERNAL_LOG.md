@@ -64,3 +64,17 @@ Build a proper tool registry and permission policy layer:
 ### DNS Note
 
 Cloudflare DNS returned A records for `lumen.ompatnaik.com` through `1.1.1.1`, and forced-resolution curl successfully reached the Worker. The local resolver initially still returned NXDOMAIN, likely cached during propagation.
+
+## 2026-08-15
+
+### Public Hub Upgrade
+
+- Reworked `lumen.ompatnaik.com` from a static project page into a Lumen install/run hub.
+- Added copyable local run, model, voice, clone, and install commands.
+- Added `/install.sh` for a guided macOS repo install/update path.
+- Added browser-side local health detection for `http://127.0.0.1:8765/state`.
+- Added CORS and Private Network Access headers to the local Lumen UI server so the public hub can detect the local console.
+
+### Boundary
+
+The public Worker cannot run Lumen's desktop automation directly. It can guide installation and open a locally running console. Actual tool execution remains on the user's Mac.
