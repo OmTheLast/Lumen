@@ -78,3 +78,11 @@ Cloudflare DNS returned A records for `lumen.ompatnaik.com` through `1.1.1.1`, a
 ### Boundary
 
 The public Worker cannot run Lumen's desktop automation directly. It can guide installation and open a locally running console. Actual tool execution remains on the user's Mac.
+
+## 2026-08-16
+
+### Hero Visual Direction
+
+- Reworked the public site's main canvas from a geometric orb into a neural lattice visual.
+- Added deterministic neuron clusters, curved synapse links, signal pulses, and a moving bright core.
+- Kept the orange Lumen visual language while avoiding a direct copy of any film UI asset.

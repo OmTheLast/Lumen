@@ -103,12 +103,14 @@ button:hover,
   display: grid;
   place-items: center;
   z-index: -1;
+  transform: translateX(4vw);
 }
 
 #orb {
-  width: min(78vmin, 820px);
+  width: min(88vmin, 960px);
   aspect-ratio: 1;
-  filter: drop-shadow(0 0 48px rgba(255, 111, 31, 0.36));
+  opacity: 0.96;
+  filter: drop-shadow(0 0 58px rgba(255, 111, 31, 0.46));
 }
 
 .copy {
@@ -302,6 +304,16 @@ code {
     grid-template-columns: 1fr;
     align-items: end;
     padding: 28px;
+  }
+
+  .visual {
+    align-items: start;
+    padding-top: 54px;
+    transform: none;
+  }
+
+  #orb {
+    width: min(92vw, 620px);
   }
 
   .copy {
