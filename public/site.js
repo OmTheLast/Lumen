@@ -63,34 +63,32 @@ function buildNeuralField() {
     return seed / 4294967296;
   };
 
-  for (let cluster = 0; cluster < 5; cluster++) {
-    const clusterAngle = -0.95 + cluster * 0.48;
-    const clusterY = Math.sin(clusterAngle * 1.4) * 0.22;
-    const clusterX = Math.cos(clusterAngle) * (cluster % 2 === 0 ? 0.18 : -0.22);
-    const count = cluster === 2 ? 34 : 25;
-    for (let i = 0; i < count; i++) {
-      const angle = random() * Math.PI * 2;
-      const spread = Math.sqrt(random());
-      const hemisphere = i % 2 === 0 ? -1 : 1;
-      nodes.push({
-        x: clusterX + Math.cos(angle) * spread * (0.24 + random() * 0.18) + hemisphere * random() * 0.16,
-        y: clusterY + Math.sin(angle) * spread * (0.18 + random() * 0.16),
-        z: (random() - 0.5) * 0.9 + Math.sin(angle) * 0.12,
-        weight: 0.5 + random() * 1.8,
-        phase: random() * Math.PI * 2,
-      });
-    }
+  for (let i = 0; i < 156; i++) {
+    const z = 1 - (2 * i + 1) / 156;
+    const theta = i * 2.399963 + random() * 0.16;
+    const ring = Math.sqrt(1 - z * z);
+    const surfaceBias = 0.82 + random() * 0.18;
+    nodes.push({
+      x: Math.cos(theta) * ring * surfaceBias,
+      y: z * 0.92 + Math.sin(theta * 2.1) * 0.025,
+      z: Math.sin(theta) * ring * surfaceBias,
+      weight: 0.45 + random() * 1.5,
+      phase: random() * Math.PI * 2,
+      shell: true,
+    });
   }
 
-  for (let i = 0; i < 52; i++) {
-    const t = i / 51;
-    const side = i % 2 === 0 ? -1 : 1;
+  for (let i = 0; i < 46; i++) {
+    const theta = random() * Math.PI * 2;
+    const phi = Math.acos(2 * random() - 1);
+    const r = 0.18 + Math.pow(random(), 0.7) * 0.54;
     nodes.push({
-      x: side * (0.18 + t * 0.46) + Math.sin(t * Math.PI * 4) * 0.04,
-      y: (t - 0.5) * 0.78,
-      z: Math.cos(t * Math.PI * 2) * 0.28,
-      weight: 0.8 + (1 - Math.abs(t - 0.5) * 2) * 1.5,
-      phase: t * Math.PI * 3,
+      x: Math.sin(phi) * Math.cos(theta) * r,
+      y: Math.cos(phi) * r * 0.92,
+      z: Math.sin(phi) * Math.sin(theta) * r,
+      weight: 0.8 + random() * 1.9,
+      phase: random() * Math.PI * 2,
+      shell: false,
     });
   }
 
@@ -101,10 +99,10 @@ function buildNeuralField() {
       const a = nodes[i];
       const b = nodes[j];
       const dist = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-      if (dist < 0.34) distances.push({ index: j, dist });
+      if (dist < 0.28) distances.push({ index: j, dist });
     }
     distances.sort((a, b) => a.dist - b.dist);
-    for (const target of distances.slice(0, 3)) {
+    for (const target of distances.slice(0, nodes[i].shell ? 3 : 5)) {
       if (i < target.index) links.push({ from: i, to: target.index, length: target.dist });
     }
   }
@@ -163,20 +161,20 @@ function project(point, time, radius) {
 }
 
 function drawNeuralShell(ctx, time, radius) {
-  for (let strand = 0; strand < 8; strand++) {
+  for (let strand = 0; strand < 11; strand++) {
     const points = [];
-    const offset = strand * 0.38;
-    for (let i = 0; i <= 96; i++) {
-      const t = i / 96;
+    const offset = strand * 0.31;
+    for (let i = 0; i <= 128; i++) {
+      const t = i / 128;
       const a = t * Math.PI * 2;
       points.push(project({
-        x: Math.cos(a + offset) * (0.62 + Math.sin(a * 3 + time * 0.001) * 0.04),
-        y: Math.sin(a * 1.6 + offset) * 0.36,
-        z: Math.sin(a + offset * 1.4) * 0.42,
+        x: Math.cos(a + offset) * (0.92 + Math.sin(a * 3 + time * 0.001) * 0.025),
+        y: Math.sin(a * (strand % 2 ? 1.0 : 1.7) + offset) * (strand % 3 === 0 ? 0.2 : 0.55),
+        z: Math.sin(a + offset * 1.4) * (0.88 - (strand % 4) * 0.07),
       }, time, radius));
     }
-    ctx.strokeStyle = tone(0.08 + strand * 0.012, strand % 3 === 0 ? "amber" : "orange");
-    ctx.lineWidth = strand % 2 === 0 ? 1.2 : 0.7;
+    ctx.strokeStyle = tone(0.09 + strand * 0.01, strand % 3 === 0 ? "amber" : "orange");
+    ctx.lineWidth = strand % 2 === 0 ? 1.35 : 0.8;
     ctx.beginPath();
     for (const [index, point] of points.entries()) {
       if (index === 0) ctx.moveTo(point.x, point.y);
@@ -222,25 +220,44 @@ function draw(time) {
   pointer.y += (pointer.ty - pointer.y) * 0.08;
 
   const ctx = canvas.getContext("2d");
-  const radius = Math.min(width, height) * 0.44;
+  const radius = Math.min(width, height) * 0.39;
   ctx.clearRect(0, 0, width, height);
   ctx.save();
   ctx.translate(width / 2, height / 2);
 
-  const backgroundGlow = ctx.createRadialGradient(0, 0, radius * 0.05, 0, 0, radius * 1.05);
+  const backgroundGlow = ctx.createRadialGradient(0, 0, radius * 0.05, 0, 0, radius * 1.22);
   backgroundGlow.addColorStop(0, "rgba(255, 214, 130, 0.16)");
-  backgroundGlow.addColorStop(0.48, "rgba(255, 143, 45, 0.06)");
+  backgroundGlow.addColorStop(0.62, "rgba(255, 143, 45, 0.06)");
   backgroundGlow.addColorStop(1, "rgba(255, 93, 31, 0)");
   ctx.fillStyle = backgroundGlow;
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 1.05, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius * 1.22, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.save();
+  ctx.strokeStyle = tone(0.3, "amber");
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.99, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = tone(0.13, "orange");
+  ctx.lineWidth = 1;
+  for (let ring = 0; ring < 3; ring++) {
+    ctx.save();
+    ctx.rotate(time * (0.00012 + ring * 0.00004) + ring * 0.8);
+    ctx.scale(1, 0.34 + ring * 0.18);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * (0.74 + ring * 0.1), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
 
   drawNeuralShell(ctx, time, radius);
 
   const projected = scene.nodes.map((node) => {
     const wave = Math.sin(time * 0.0014 + node.phase) * 0.025;
-    return project({ x: node.x + wave, y: node.y, z: node.z - wave }, time, radius);
+    return project({ x: node.x + wave, y: node.y, z: node.z - wave }, time, radius * 0.96);
   });
 
   const sortedLinks = [...scene.links].sort((a, b) => {
@@ -269,7 +286,8 @@ function draw(time) {
     const node = scene.nodes[index];
     const blink = 0.55 + Math.sin(time * 0.002 + node.phase) * 0.35;
     const depth = Math.max(0.22, Math.min(1, (point.z + 1.15) / 2.3));
-    const size = (1.45 + node.weight * 0.75) * point.depth;
+    const edgeBoost = node.shell ? 0.85 : 1.25;
+    const size = (1.15 + node.weight * 0.62) * point.depth * edgeBoost;
     ctx.fillStyle = tone((0.18 + depth * 0.62) * blink, depth > 0.66 ? "white" : "amber");
     ctx.beginPath();
     ctx.arc(point.x, point.y, size, 0, Math.PI * 2);
