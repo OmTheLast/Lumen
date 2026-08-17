@@ -147,4 +147,12 @@ https://lumen.ompatnaik.com/api/health
 
 The hub can copy install/run commands, serve an install helper at `/install.sh`, check whether the local Lumen console is running at `http://127.0.0.1:8765`, and open that local console. Local agent features still run on your Mac. Cloudflare hosts the public web presence; it does not run macOS desktop automation, Ollama, or MLX Whisper.
 
+The download button on the public site serves:
+
+```text
+https://lumen.ompatnaik.com/download
+```
+
+That route downloads the same installer as `/install.sh`, named `lumen-installer.sh`. It is a shell script that clones or updates the repo, runs `uv sync`, builds the repo-backed `Lumen.app`, and installs it into `~/Applications`. It does not download model weights, Ollama, LM Studio, Whisper models, Cloudflare credentials, or any secrets.
+
 See [docs/cloudflare.md](docs/cloudflare.md) for setup, deploy, GitHub integration, and future-project notes.

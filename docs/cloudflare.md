@@ -6,9 +6,9 @@ This repo is configured for a Cloudflare Worker at:
 https://lumen.ompatnaik.com
 ```
 
-The deployed Worker hosts the public Lumen website from `public/`. The site is the install/run hub: it provides copyable commands, serves `/install.sh`, checks for a local Lumen console at `http://127.0.0.1:8765`, and links into that local console when available.
+The deployed Worker hosts the public Lumen website from `public/`. The site is the install/run hub: it provides copyable commands, serves `/install.sh`, exposes `/download` as the named installer download, checks for a local Lumen console at `http://127.0.0.1:8765`, and links into that local console when available.
 
-The installer clones or updates the repo, runs `uv sync`, builds `Lumen.app`, and installs the wrapper into `~/Applications`.
+The installer clones or updates the repo, runs `uv sync`, builds `Lumen.app`, and installs the wrapper into `~/Applications`. The `/download` route returns the same script with `Content-Disposition: attachment; filename="lumen-installer.sh"` so the button behaves like a normal file download.
 
 The macOS desktop agent in `lumen/` still runs locally; Cloudflare Workers cannot run macOS automation, local Ollama, MLX Whisper, or desktop app controls.
 
@@ -74,4 +74,5 @@ wrangler whoami
 npm run check
 npm run deploy -- --dry-run
 curl https://lumen.ompatnaik.com/api/health
+curl -I https://lumen.ompatnaik.com/download
 ```

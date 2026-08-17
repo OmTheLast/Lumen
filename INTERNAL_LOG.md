@@ -99,3 +99,10 @@ The public Worker cannot run Lumen's desktop automation directly. It can guide i
 ### Packaging Boundary
 
 This is a repo-backed app wrapper, not a fully self-contained signed/notarized `.dmg`. It still requires `uv`, the local repo checkout, and separate local model installation.
+
+### Public Download Boundary
+
+- Added `/download` on the Cloudflare Worker as the user-facing installer download route.
+- `/download` serves the same shell installer as `/install.sh`, but names it `lumen-installer.sh`.
+- Updated the public Lumen site to show an installer manifest: it clones or updates the repo, runs `uv sync`, builds `Lumen.app`, and installs it into `~/Applications`.
+- Made the page explicit that the download is not a signed DMG yet and does not include models, secrets, Ollama, LM Studio, or Whisper model weights.

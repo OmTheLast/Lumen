@@ -3,7 +3,7 @@ const statusCard = document.querySelector(".status-card");
 const localState = document.getElementById("localState");
 const localDetail = document.getElementById("localDetail");
 const checkLocal = document.getElementById("checkLocal");
-const openLocal = document.getElementById("openLocal");
+const openLocalLinks = [...document.querySelectorAll("[data-open-local]")];
 const toast = document.getElementById("toast");
 const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
 const scene = buildNeuralField();
@@ -26,11 +26,11 @@ async function copyText(value) {
 }
 
 async function checkLocalLumen() {
-  if (!statusCard || !localState || !localDetail || !openLocal) return;
+  if (!statusCard || !localState || !localDetail) return;
   localState.textContent = "Checking";
   localDetail.textContent = "Looking for Lumen at 127.0.0.1:8765.";
   statusCard.classList.remove("online", "offline");
-  openLocal.setAttribute("aria-disabled", "true");
+  openLocalLinks.forEach((link) => link.setAttribute("aria-disabled", "true"));
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 900);
@@ -44,7 +44,7 @@ async function checkLocalLumen() {
     statusCard.classList.add("online");
     localState.textContent = "Online";
     localDetail.textContent = state.message || "Local Lumen console is running.";
-    openLocal.removeAttribute("aria-disabled");
+    openLocalLinks.forEach((link) => link.removeAttribute("aria-disabled"));
   } catch {
     window.clearTimeout(timeout);
     statusCard.classList.add("offline");
@@ -323,11 +323,13 @@ document.querySelectorAll("[data-copy]").forEach((button) => {
 });
 
 checkLocal?.addEventListener("click", checkLocalLumen);
-openLocal?.addEventListener("click", (event) => {
-  if (openLocal.getAttribute("aria-disabled") === "true") {
-    event.preventDefault();
-    showToast("Start Lumen locally first.");
-  }
+openLocalLinks.forEach((link) => {
+  link.addEventListener("click", (event) => {
+    if (link.getAttribute("aria-disabled") === "true") {
+      event.preventDefault();
+      showToast("Start Lumen locally first.");
+    }
+  });
 });
 
 checkLocalLumen();

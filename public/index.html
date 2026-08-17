@@ -9,20 +9,39 @@
 </head>
 <body>
   <main class="shell">
+    <header class="topbar" aria-label="Lumen navigation">
+      <a class="brand" href="/" aria-label="Lumen home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Lumen</span>
+      </a>
+      <nav>
+        <a href="#run">Run</a>
+        <a href="#install">Install</a>
+        <a href="#manifest">Payload</a>
+        <a href="https://github.com/OmTheLast/Lumen">GitHub</a>
+      </nav>
+    </header>
+
     <section class="hero" aria-label="Lumen install and run hub">
       <div class="visual" aria-hidden="true">
         <canvas id="orb"></canvas>
       </div>
       <div class="copy">
-        <p class="eyebrow">Local-first macOS agent</p>
+        <p class="eyebrow">Local-first macOS agent interface</p>
         <h1>Lumen</h1>
         <p class="lede">
-          Install Lumen, start the local agent, then use the local console on your machine. The public website is the launch hub; your desktop automation stays local.
+          A local desktop agent you install on your Mac, then command through a live console and voice UI. The website launches the process; the automation stays on your machine.
         </p>
         <div class="actions">
-          <a class="button primary" href="#run">Run Locally</a>
-          <a class="button" href="#install">Install</a>
+          <a class="button primary" href="/download" download="lumen-installer.sh">Download Installer</a>
+          <a class="button" href="#install">View Install Path</a>
+          <a class="button" data-open-local href="http://127.0.0.1:8765" aria-disabled="true">Open Console</a>
           <a class="button" href="https://github.com/OmTheLast/Lumen">GitHub</a>
+        </div>
+        <div class="download-brief" aria-label="Download summary">
+          <span>Download payload</span>
+          <strong>lumen-installer.sh</strong>
+          <p>Shell installer. It clones or updates the GitHub repo, installs Python deps with uv, builds Lumen.app, and places it in ~/Applications.</p>
         </div>
       </div>
       <aside class="status-card" aria-label="Local Lumen status">
@@ -33,9 +52,34 @@
         <p id="localDetail">Looking for Lumen at 127.0.0.1:8765.</p>
         <div class="status-actions">
           <button type="button" id="checkLocal">Check Again</button>
-          <a id="openLocal" href="http://127.0.0.1:8765" aria-disabled="true">Open Console</a>
+          <a data-open-local href="http://127.0.0.1:8765" aria-disabled="true">Open Console</a>
         </div>
       </aside>
+    </section>
+
+    <section id="manifest" class="manifest" aria-label="Download payload manifest">
+      <div class="manifest-copy">
+        <p class="eyebrow">Installer manifest</p>
+        <h2>What The Download Actually Is</h2>
+        <p>The download button fetches a small shell script named <code>lumen-installer.sh</code>. It is not a signed DMG yet, and it is not model weights.</p>
+      </div>
+      <div class="manifest-list">
+        <div>
+          <span>Gets</span>
+          <strong>GitHub source</strong>
+          <p>Clones or updates <code>OmTheLast/Lumen</code> into <code>~/Documents/Code/Lumen</code>.</p>
+        </div>
+        <div>
+          <span>Builds</span>
+          <strong>Mac app wrapper</strong>
+          <p>Runs <code>uv sync</code>, builds <code>Lumen.app</code>, and installs it into <code>~/Applications</code>.</p>
+        </div>
+        <div>
+          <span>Does not get</span>
+          <strong>Models or secrets</strong>
+          <p>Ollama, LM Studio, Whisper models, tokens, and private config remain separate local prerequisites.</p>
+        </div>
+      </div>
     </section>
 
     <section id="run" class="panel-grid" aria-label="Run Lumen locally">
@@ -74,6 +118,7 @@
         <p class="eyebrow">Fresh install</p>
         <h2>Install Lumen From GitHub</h2>
         <p>For a new user machine, install prerequisites, clone the repo, then start Lumen locally. The public site can guide the install, but the user must approve commands in Terminal.</p>
+        <a class="button primary install-download" href="/download" download="lumen-installer.sh">Download Installer Script</a>
       </div>
       <div class="steps">
         <div class="command-row">
