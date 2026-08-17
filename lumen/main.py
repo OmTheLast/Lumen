@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from typing import NamedTuple
 
 from lumen.agent.executor import Executor
@@ -21,6 +22,7 @@ from lumen.voice.tts import speak
 
 
 def main() -> int:
+    no_stdin = _should_run_without_stdin(sys.argv[1:])
     config = Config()
     planner = Planner(config, OllamaClient(config.ollama_url))
     executor = Executor()
@@ -40,9 +42,15 @@ def main() -> int:
     if overlay is not None:
         print("Overlay: bottom-right native orb enabled")
     print("Tools:   " + ", ".join(sorted(TOOLS)))
-    print("Type 'quit' or 'exit' to stop.")
-    print("Type '/voice' for auto-stop voice, or '/voice 5' for fixed 5 seconds.")
+    if no_stdin:
+        print("App mode: terminal input disabled. Use the local web console.")
+    else:
+        print("Type 'quit' or 'exit' to stop.")
+        print("Type '/voice' for auto-stop voice, or '/voice 5' for fixed 5 seconds.")
     print()
+
+    if no_stdin:
+        return _run_without_stdin(presence, ui_server, overlay, stop_event, worker)
 
     while True:
         try:
@@ -73,6 +81,28 @@ def main() -> int:
             continue
 
         process_command(user_input, planner, executor, presence)
+
+
+def _run_without_stdin(
+    presence: PresenceState,
+    ui_server: PresenceServer | None,
+    overlay: OverlayHandle | None,
+    stop_event: threading.Event,
+    worker: threading.Thread,
+) -> int:
+    presence.update("idle", "Lumen is running.", detail="Use the local web console.")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        print("\nShutting down Lumen.")
+        presence.update("idle", "Lumen is shutting down.", detail="App interrupted.")
+        _shutdown_presence(ui_server, overlay, stop_event, worker)
+        return 0
+
+
+def _should_run_without_stdin(args: list[str]) -> bool:
+    return "--no-stdin" in args or "--app" in args
 
 
 def process_command(

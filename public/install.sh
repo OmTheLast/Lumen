@@ -32,12 +32,16 @@ fi
 
 cd "$TARGET_DIR"
 uv sync
+scripts/build_macos_app.sh --install-user
 
 cat <<'NEXT'
 
 Lumen is installed.
 
-Start it with:
+Open the app:
+  ~/Applications/Lumen.app
+
+Or start it from Terminal:
   cd ~/Documents/Code/Lumen && uv run python -m lumen.main
 
 Then open:

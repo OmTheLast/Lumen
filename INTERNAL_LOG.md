@@ -86,3 +86,16 @@ The public Worker cannot run Lumen's desktop automation directly. It can guide i
 - Reworked the public site's main canvas from a geometric orb into a neural lattice visual.
 - Added deterministic neuron clusters, curved synapse links, signal pulses, and a moving bright core.
 - Kept the orange Lumen visual language while avoiding a direct copy of any film UI asset.
+
+## 2026-08-17
+
+### macOS App Packaging
+
+- Added `--app` / `--no-stdin` mode so Lumen can run from Finder without terminal stdin.
+- Added `scripts/build_macos_app.sh` to build `dist/macos/Lumen.app`.
+- The app wrapper launches `uv run python -m lumen.main --app`, opens the local web console, enables the overlay, and writes logs to `~/Library/Logs/Lumen/lumen.log`.
+- Updated the hosted installer to install `Lumen.app` into `~/Applications`.
+
+### Packaging Boundary
+
+This is a repo-backed app wrapper, not a fully self-contained signed/notarized `.dmg`. It still requires `uv`, the local repo checkout, and separate local model installation.

@@ -39,6 +39,26 @@ LUMEN_VOICE_STT_MODEL=mlx-community/whisper-tiny
 
 ## Run
 
+Open the packaged app:
+
+```sh
+open ~/Applications/Lumen.app
+```
+
+Build or reinstall the app wrapper from the repo:
+
+```sh
+scripts/build_macos_app.sh --install-user
+```
+
+The app wrapper starts Lumen in app mode, opens the local web console, and writes logs to:
+
+```text
+~/Library/Logs/Lumen/lumen.log
+```
+
+You can still run Lumen directly from Terminal:
+
 ```sh
 cd /Users/ompatnaik/Documents/Code/Lumen
 uv run python -m lumen.main
