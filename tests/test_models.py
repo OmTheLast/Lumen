@@ -22,3 +22,21 @@ def test_discover_models_includes_configured_models(monkeypatch):
     ids = {model["id"] for model in payload["models"]}
 
     assert {"planner:test", "router:test", "whisper:test"}.issubset(ids)
+
+
+def test_discover_models_resolves_missing_chat_model(monkeypatch):
+    from lumen.models import ModelOption
+
+    monkeypatch.setattr(
+        "lumen.models._discover_ollama",
+        lambda _url: [ModelOption("qwen3:latest", "ollama", "chat", "qwen3:latest")],
+    )
+    monkeypatch.setattr("lumen.models._discover_openai_compatible", lambda _url, _provider: [])
+    config = Config(planner_model="deleted:test", router_model="qwen3:latest", voice_stt_model="whisper:test")
+
+    payload = discover_models(config)
+
+    assert payload["settings"]["planner_model"] == "deleted:test"
+    assert payload["resolved_settings"]["planner_model"] == "qwen3:latest"
+    assert payload["unavailable_settings"]["planner_model"] == "deleted:test"
+    assert payload["diagnostics"]["ollama_model_count"] == 1

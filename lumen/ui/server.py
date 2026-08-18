@@ -68,11 +68,6 @@ class PresenceServer:
         config_lock = self._config_lock
 
         class Handler(BaseHTTPRequestHandler):
-            def do_OPTIONS(self) -> None:
-                self.send_response(204)
-                self._send_cors_headers()
-                self.end_headers()
-
             def do_GET(self) -> None:
                 route = urlparse(self.path).path
                 if route == "/":
@@ -134,7 +129,6 @@ class PresenceServer:
                 encoded = body.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
-                self._send_cors_headers()
                 self.send_header("Content-Length", str(len(encoded)))
                 self.end_headers()
                 self.wfile.write(encoded)
@@ -153,16 +147,9 @@ class PresenceServer:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
-                self._send_cors_headers()
                 self.send_header("Content-Length", str(len(encoded)))
                 self.end_headers()
                 self.wfile.write(encoded)
-
-            def _send_cors_headers(self) -> None:
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type")
-                self.send_header("Access-Control-Allow-Private-Network", "true")
 
         return Handler
 
@@ -1398,9 +1385,18 @@ async function refreshModels() {
     const response = await fetch("/settings", { cache: "no-store" });
     const payload = await response.json();
     modelSettings = payload.settings || {};
-    renderModelSelects(payload.models || [], modelSettings);
+    const resolvedSettings = payload.resolved_settings || modelSettings;
+    renderModelSelects(payload.models || [], resolvedSettings);
     const providers = payload.providers || {};
-    modelStatus.textContent = `Ollama ${providers.ollama || "unknown"} · LM Studio ${providers.lm_studio || "unknown"}`;
+    const diagnostics = payload.diagnostics || {};
+    const unavailable = Object.values(payload.unavailable_settings || {});
+    const statusParts = [
+      `Ollama ${providers.ollama || "unknown"} (${diagnostics.ollama_model_count ?? 0})`,
+      `LM Studio ${providers.lm_studio || "unknown"} (${diagnostics.lm_studio_model_count ?? 0})`
+    ];
+    modelStatus.textContent = unavailable.length
+      ? `${statusParts.join(" · ")} · not detected: ${unavailable.join(", ")}`
+      : statusParts.join(" · ");
   } catch {
     modelStatus.textContent = "Model detection unavailable.";
   }

@@ -48,45 +48,6 @@ Build a proper tool registry and permission policy layer:
 - Allow per-tool approval modes.
 - Add audit logging for executed tools and rejected actions.
 
-## 2026-08-12
-
-### Cloudflare Website Checkpoint
-
-- Installed Wrangler globally.
-- Authenticated Wrangler with Cloudflare account `omexp99@gmail.com`.
-- Accepted Wrangler's Cloudflare agent-skill setup for Codex and other local coding agents.
-- Added Worker configuration for `lumen.ompatnaik.com`.
-- Added a public static site in `public/`.
-- Added Worker API route `/api/health`.
-- Added local npm scripts for Worker development, dry-run validation, and deploy.
-- Deployed Worker version `384c5971-1dea-4384-8ed8-95c8cee17c22`.
-
-### DNS Note
-
-Cloudflare DNS returned A records for `lumen.ompatnaik.com` through `1.1.1.1`, and forced-resolution curl successfully reached the Worker. The local resolver initially still returned NXDOMAIN, likely cached during propagation.
-
-## 2026-08-15
-
-### Public Hub Upgrade
-
-- Reworked `lumen.ompatnaik.com` from a static project page into a Lumen install/run hub.
-- Added copyable local run, model, voice, clone, and install commands.
-- Added `/install.sh` for a guided macOS repo install/update path.
-- Added browser-side local health detection for `http://127.0.0.1:8765/state`.
-- Added CORS and Private Network Access headers to the local Lumen UI server so the public hub can detect the local console.
-
-### Boundary
-
-The public Worker cannot run Lumen's desktop automation directly. It can guide installation and open a locally running console. Actual tool execution remains on the user's Mac.
-
-## 2026-08-16
-
-### Hero Visual Direction
-
-- Reworked the public site's main canvas from a geometric orb into a neural lattice visual.
-- Added deterministic neuron clusters, curved synapse links, signal pulses, and a moving bright core.
-- Kept the orange Lumen visual language while avoiding a direct copy of any film UI asset.
-
 ## 2026-08-17
 
 ### macOS App Packaging
@@ -94,15 +55,20 @@ The public Worker cannot run Lumen's desktop automation directly. It can guide i
 - Added `--app` / `--no-stdin` mode so Lumen can run from Finder without terminal stdin.
 - Added `scripts/build_macos_app.sh` to build `dist/macos/Lumen.app`.
 - The app wrapper launches `uv run python -m lumen.main --app`, opens the local web console, enables the overlay, and writes logs to `~/Library/Logs/Lumen/lumen.log`.
-- Updated the hosted installer to install `Lumen.app` into `~/Applications`.
 
 ### Packaging Boundary
 
 This is a repo-backed app wrapper, not a fully self-contained signed/notarized `.dmg`. It still requires `uv`, the local repo checkout, and separate local model installation.
 
-### Public Download Boundary
+### Native App Window
 
-- Added `/download` on the Cloudflare Worker as the user-facing installer download route.
-- `/download` serves the same shell installer as `/install.sh`, but names it `lumen-installer.sh`.
-- Updated the public Lumen site to show an installer manifest: it clones or updates the repo, runs `uv sync`, builds `Lumen.app`, and installs it into `~/Applications`.
-- Made the page explicit that the download is not a signed DMG yet and does not include models, secrets, Ollama, LM Studio, or Whisper model weights.
+- Added a Swift/AppKit `lumen-window` helper that opens the local `http://127.0.0.1:8765` interface inside a native macOS window.
+- Updated `Lumen.app` launch defaults to stop opening a browser tab and enable the native app window.
+- Added a Swift/AppKit `lumen-overlay` helper for a transparent bottom-right desktop orb; Tk remains fallback only.
+- Closing the native Lumen window now shuts down the app-mode backend.
+
+### GitHub Presentation
+
+- Reframed `README.md` as the public-facing GitHub page for Lumen as a local macOS desktop agent.
+- Removed Cloudflare deployment/install-hub language from the public README.
+- Documented the Lumen image asset at `assets/lumen-icon.png` with editable source at `assets/lumen-icon.svg`.

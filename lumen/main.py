@@ -16,6 +16,7 @@ from lumen.ui.overlay import start_overlay
 from lumen.ui.overlay import OverlayHandle
 from lumen.ui.server import PresenceServer
 from lumen.ui.state import ChatBridge, PresenceState
+from lumen.ui.window import AppWindowHandle, start_app_window
 from lumen.voice.recorder import VoiceDependencyError, record_command_wav, record_wav
 from lumen.voice.stt import MlxWhisperTranscriber, SpeechToTextError
 from lumen.voice.tts import speak
@@ -29,6 +30,7 @@ def main() -> int:
     presence = PresenceState()
     chat_bridge = ChatBridge()
     ui_server = _start_presence_ui(config, presence, chat_bridge)
+    app_window = _start_app_window(config, ui_server)
     overlay = _start_overlay(config, ui_server)
     stop_event = threading.Event()
     worker = _start_web_command_worker(chat_bridge, planner, executor, presence, stop_event)
@@ -39,6 +41,8 @@ def main() -> int:
     print(f"Ollama:  {config.ollama_url}")
     if ui_server is not None:
         print(f"UI:      {ui_server.url}")
+    if app_window is not None:
+        print("Window:  native Lumen interface enabled")
     if overlay is not None:
         print("Overlay: bottom-right native orb enabled")
     print("Tools:   " + ", ".join(sorted(TOOLS)))
@@ -50,7 +54,7 @@ def main() -> int:
     print()
 
     if no_stdin:
-        return _run_without_stdin(presence, ui_server, overlay, stop_event, worker)
+        return _run_without_stdin(presence, ui_server, app_window, overlay, stop_event, worker)
 
     while True:
         try:
@@ -58,12 +62,12 @@ def main() -> int:
         except KeyboardInterrupt:
             print("\nShutting down Lumen.")
             presence.update("idle", "Lumen is shutting down.", detail="Terminal interrupted.")
-            _shutdown_presence(ui_server, overlay, stop_event, worker)
+            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
             return 0
         except EOFError:
             presence.update("idle", "Lumen is shutting down.", detail="Terminal input closed.")
             print()
-            _shutdown_presence(ui_server, overlay, stop_event, worker)
+            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
             return 0
 
         if not user_input:
@@ -71,7 +75,7 @@ def main() -> int:
         if user_input.lower() in {"quit", "exit"}:
             print("Shutting down Lumen.")
             presence.update("idle", "Lumen is shutting down.", detail="Goodbye.")
-            _shutdown_presence(ui_server, overlay, stop_event, worker)
+            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
             return 0
 
         if user_input.startswith("/voice"):
@@ -86,18 +90,24 @@ def main() -> int:
 def _run_without_stdin(
     presence: PresenceState,
     ui_server: PresenceServer | None,
+    app_window: AppWindowHandle | None,
     overlay: OverlayHandle | None,
     stop_event: threading.Event,
     worker: threading.Thread,
 ) -> int:
-    presence.update("idle", "Lumen is running.", detail="Use the local web console.")
+    presence.update("idle", "Lumen is running.", detail="Use the Lumen app window.")
     try:
         while True:
-            time.sleep(3600)
+            if app_window is not None and app_window.process.poll() is not None:
+                print("Lumen window closed. Shutting down.")
+                presence.update("idle", "Lumen is shutting down.", detail="Window closed.")
+                _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
+                return 0
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nShutting down Lumen.")
         presence.update("idle", "Lumen is shutting down.", detail="App interrupted.")
-        _shutdown_presence(ui_server, overlay, stop_event, worker)
+        _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
         return 0
 
 
@@ -243,6 +253,12 @@ def _start_presence_ui(config: Config, presence: PresenceState, chat_bridge: Cha
     return server
 
 
+def _start_app_window(config: Config, ui_server: PresenceServer | None) -> AppWindowHandle | None:
+    if not config.app_window_enabled or ui_server is None:
+        return None
+    return start_app_window(url=ui_server.url)
+
+
 def _start_overlay(config: Config, ui_server: PresenceServer | None) -> OverlayHandle | None:
     if not config.overlay_enabled or ui_server is None:
         return None
@@ -271,6 +287,7 @@ def _start_web_command_worker(
 
 def _shutdown_presence(
     ui_server: PresenceServer | None,
+    app_window: AppWindowHandle | None,
     overlay: OverlayHandle | None,
     stop_event: threading.Event | None = None,
     worker: threading.Thread | None = None,
@@ -279,6 +296,12 @@ def _shutdown_presence(
         stop_event.set()
     if worker is not None:
         worker.join(timeout=1)
+    if app_window is not None:
+        app_window.process.terminate()
+        try:
+            app_window.process.wait(timeout=1)
+        except Exception:
+            app_window.process.kill()
     if overlay is not None:
         overlay.process.terminate()
         try:

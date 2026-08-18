@@ -57,8 +57,9 @@ class Config:
     ui_host: str = os.getenv("LUMEN_UI_HOST", "127.0.0.1")
     ui_port: int = int(os.getenv("LUMEN_UI_PORT", "8765"))
     ui_open_browser: bool = os.getenv("LUMEN_UI_OPEN_BROWSER", "1") != "0"
+    app_window_enabled: bool = os.getenv("LUMEN_APP_WINDOW_ENABLED", "0") != "0"
     overlay_enabled: bool = os.getenv("LUMEN_OVERLAY_ENABLED", "1") != "0"
-    overlay_size: int = int(os.getenv("LUMEN_OVERLAY_SIZE", "136"))
+    overlay_size: int = int(os.getenv("LUMEN_OVERLAY_SIZE", "92"))
     voice_stt_model: str = _configured_value(
         "voice_stt_model",
         "LUMEN_VOICE_STT_MODEL",

@@ -46,6 +46,14 @@ if [ "$(uname -s)" != "Darwin" ]; then
 fi
 
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+mkdir -p "$ROOT_DIR/dist/helpers"
+
+if command -v swiftc >/dev/null 2>&1; then
+  swiftc "$ROOT_DIR/lumen/ui/macos_window.swift" -O -o "$ROOT_DIR/dist/helpers/lumen-window"
+  swiftc "$ROOT_DIR/lumen/ui/macos_overlay.swift" -O -o "$ROOT_DIR/dist/helpers/lumen-overlay"
+else
+  echo "swiftc unavailable; native Lumen window and AppKit orb helper will be skipped." >&2
+fi
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -68,8 +76,6 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
-  <key>LSUIElement</key>
-  <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>Lumen uses the microphone for optional local voice commands.</string>
   <key>NSAppleEventsUsageDescription</key>
@@ -84,7 +90,8 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH"
 export LUMEN_REPO_DIR="\${LUMEN_REPO_DIR:-$ROOT_DIR}"
-export LUMEN_UI_OPEN_BROWSER="\${LUMEN_UI_OPEN_BROWSER:-1}"
+export LUMEN_UI_OPEN_BROWSER="\${LUMEN_UI_OPEN_BROWSER:-0}"
+export LUMEN_APP_WINDOW_ENABLED="\${LUMEN_APP_WINDOW_ENABLED:-1}"
 export LUMEN_OVERLAY_ENABLED="\${LUMEN_OVERLAY_ENABLED:-1}"
 
 LOG_DIR="\$HOME/Library/Logs/Lumen"
@@ -110,8 +117,9 @@ $ROOT_DIR
 Logs:
 ~/Library/Logs/Lumen/lumen.log
 
-The app starts Lumen in app mode, opens the local web console, and keeps the
-agent running without terminal stdin.
+The app starts Lumen in app mode, opens the native Lumen window, and keeps the
+agent running without terminal stdin. The interface is served locally by the
+embedded server.
 README
 
 echo "Built $APP_DIR"

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import math
+import platform
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
@@ -16,13 +19,18 @@ class OverlayHandle:
     process: subprocess.Popen[bytes]
 
 
-def start_overlay(*, state_url: str, size: int = 136) -> OverlayHandle | None:
+def start_overlay(*, state_url: str, size: int = 92) -> OverlayHandle | None:
     """Start the native overlay as a helper process.
 
-    On macOS, Tk/AppKit windows must be created on the main thread. Running the
+    On macOS, AppKit/Tk windows must be created on the main thread. Running the
     overlay in a helper process keeps Lumen's terminal loop responsive and avoids
     crashing the main process.
     """
+    if platform.system() == "Darwin":
+        handle = _start_appkit_overlay(state_url=state_url, size=size)
+        if handle is not None:
+            return handle
+
     cmd = [
         sys.executable,
         "-m",
@@ -30,7 +38,7 @@ def start_overlay(*, state_url: str, size: int = 136) -> OverlayHandle | None:
         "--state-url",
         state_url,
         "--size",
-        str(max(96, size)),
+        str(max(72, size)),
     ]
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -38,6 +46,55 @@ def start_overlay(*, state_url: str, size: int = 136) -> OverlayHandle | None:
         print(f"Overlay unavailable: {exc}")
         return None
     return OverlayHandle(process)
+
+
+def _start_appkit_overlay(*, state_url: str, size: int) -> OverlayHandle | None:
+    binary = _ensure_appkit_overlay_binary()
+    if binary is None:
+        return None
+
+    cmd = [
+        str(binary),
+        "--state-url",
+        state_url,
+        "--size",
+        str(max(72, size)),
+    ]
+    try:
+        process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        return None
+    return OverlayHandle(process)
+
+
+def _ensure_appkit_overlay_binary() -> Path | None:
+    swiftc = shutil.which("swiftc")
+    if swiftc is None:
+        return None
+
+    source = Path(__file__).with_name("macos_overlay.swift")
+    if not source.exists():
+        return None
+
+    build_dir = source.parents[2] / "dist" / "helpers"
+    binary = build_dir / "lumen-overlay"
+    if binary.exists() and binary.stat().st_mtime >= source.stat().st_mtime:
+        return binary
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        result = subprocess.run(
+            [swiftc, str(source), "-O", "-o", str(binary)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    if result.returncode != 0:
+        return None
+    return binary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -61,19 +118,35 @@ def main(argv: list[str] | None = None) -> int:
     if not state_url:
         print("Missing --state-url")
         return 2
-    _run_overlay(state_url, max(96, size))
+    _run_overlay(state_url, max(72, size))
     return 0
 
 
 def _run_overlay(state_url: str, size: int) -> None:
     import tkinter as tk
 
+    transparent = "systemTransparent"
+
     root = tk.Tk()
-    root.title("Lumen")
+    root.withdraw()
+    root.title("")
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     try:
-        root.attributes("-alpha", 0.96)
+        root.attributes("-stylemask", ())
+    except tk.TclError:
+        pass
+    _apply_frameless_window_style(root)
+    try:
+        root.attributes("-alpha", 0.98)
+    except tk.TclError:
+        pass
+    try:
+        root.attributes("-transparentcolor", transparent)
+    except tk.TclError:
+        pass
+    try:
+        root.attributes("-transparent", True)
     except tk.TclError:
         pass
 
@@ -81,17 +154,38 @@ def _run_overlay(state_url: str, size: int) -> None:
     height = size
     screen_w = root.winfo_screenwidth()
     screen_h = root.winfo_screenheight()
-    x = max(0, screen_w - width - 22)
-    y = max(0, screen_h - height - 58)
+    x = max(0, screen_w - width - 18)
+    y = max(0, screen_h - height - 86)
     root.geometry(f"{width}x{height}+{x}+{y}")
-    root.configure(bg="#090402")
+    root.configure(bg=transparent)
 
-    canvas = tk.Canvas(root, width=width, height=height, highlightthickness=0, bg="#090402")
+    canvas = tk.Canvas(
+        root,
+        width=width,
+        height=height,
+        highlightthickness=0,
+        borderwidth=0,
+        relief="flat",
+        bg=transparent,
+    )
     canvas.pack(fill="both", expand=True)
 
     renderer = _OverlayRenderer(canvas, state_url, width, height)
+    root.deiconify()
+    root.lift()
     renderer.tick()
     root.mainloop()
+
+
+def _apply_frameless_window_style(root: Any) -> None:
+    """Ask Aqua Tk for a chrome-free helper window when the command exists."""
+    styles = ("plain", "help", "floating")
+    for style in styles:
+        try:
+            root.tk.call("::tk::unsupported::MacWindowStyle", "style", root._w, style, "none")
+            return
+        except Exception:
+            continue
 
 
 class _OverlayRenderer:
@@ -162,7 +256,7 @@ class _OverlayRenderer:
             cy + outer + 13,
             outline="#301405",
             width=1,
-            fill="#0b0401",
+            fill="",
         )
 
         for index, angle in enumerate(range(0, 360, 18)):
@@ -181,7 +275,7 @@ class _OverlayRenderer:
             cy + outer,
             outline=color,
             width=2,
-            fill="#1a0802",
+            fill="",
         )
 
         projected = self._project_nodes(cx, cy, outer)
