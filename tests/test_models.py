@@ -40,3 +40,14 @@ def test_discover_models_resolves_missing_chat_model(monkeypatch):
     assert payload["resolved_settings"]["planner_model"] == "qwen3:latest"
     assert payload["unavailable_settings"]["planner_model"] == "deleted:test"
     assert payload["diagnostics"]["ollama_model_count"] == 1
+
+
+def test_discover_models_includes_voice_presets(monkeypatch):
+    monkeypatch.setattr("lumen.models._discover_ollama", lambda _url: [])
+    monkeypatch.setattr("lumen.models._discover_openai_compatible", lambda _url, _provider: [])
+
+    payload = discover_models(Config())
+    stt_ids = {model["id"] for model in payload["models"] if model["kind"] == "speech_to_text"}
+
+    assert "mlx-community/whisper-base-mlx" in stt_ids
+    assert "mlx-community/whisper-large-v3-turbo-q4" in stt_ids

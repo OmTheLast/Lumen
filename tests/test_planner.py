@@ -46,3 +46,38 @@ def test_open_youtube_simple_plan_opens_url():
 
     assert plan.actions[0].tool == "open_url"
     assert plan.actions[0].args["url"] == "https://www.youtube.com"
+
+
+def test_new_tab_simple_plan():
+    plan = make_planner().plan("new tab")
+
+    assert plan.actions[0].tool == "browser_new_tab"
+    assert plan.actions[0].args == {"browser": "Safari", "url": ""}
+
+
+def test_new_chrome_tab_with_url_simple_plan():
+    plan = make_planner().plan("open new chrome tab with example.com")
+
+    assert plan.actions[0].tool == "browser_new_tab"
+    assert plan.actions[0].args == {"browser": "Google Chrome", "url": "example.com"}
+
+
+def test_close_tab_simple_plan():
+    plan = make_planner().plan("close tab")
+
+    assert plan.actions[0].tool == "browser_close_tab"
+    assert plan.actions[0].args == {"browser": "Safari"}
+
+
+def test_next_tab_simple_plan():
+    plan = make_planner().plan("next tab")
+
+    assert plan.actions[0].tool == "browser_switch_tab"
+    assert plan.actions[0].args == {"browser": "Safari", "direction": "next"}
+
+
+def test_reload_tab_simple_plan():
+    plan = make_planner().plan("reload tab")
+
+    assert plan.actions[0].tool == "browser_reload_tab"
+    assert plan.actions[0].args == {"browser": "Safari"}

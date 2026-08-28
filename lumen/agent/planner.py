@@ -30,12 +30,17 @@ Available tools:
 - open_app(app_name): open a macOS application.
 - open_url(url, browser): open a URL, optionally in a browser.
 - web_search(query, browser, engine): search the web in a browser.
+- browser_new_tab(url, browser): open a new browser tab, optionally with a URL.
+- browser_close_tab(browser): close the active browser tab.
+- browser_reload_tab(browser): reload the active browser tab.
+- browser_switch_tab(direction, browser): switch to the next or previous tab.
+- browser_active_tab(browser): report the active tab title and URL.
 - screenshot(filename): take a screenshot.
 - read_file(path): read a UTF-8 text file.
 - write_file(path, content): write a UTF-8 text file.
 - run_shell(command): run a shell command.
 
-Prefer open_app/open_url/web_search over run_shell.
+Prefer browser tools, open_app/open_url/web_search over run_shell.
 Use the fewest actions needed.
 If no tool is needed, return an empty actions array.
 """
@@ -180,6 +185,104 @@ class Planner:
                         tool="open_url",
                         args={"url": "https://www.youtube.com", "browser": self.config.default_browser},
                         reason="The user asked to open YouTube.",
+                    )
+                ],
+            )
+
+        new_tab_match = re.fullmatch(
+            r"(?:open\s+)?(?:a\s+)?new\s+(?:(safari|chrome|google chrome|firefox|arc|brave|edge)\s+)?tab(?:\s+(?:with|to|at)\s+(.+))?",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if new_tab_match:
+            browser = self._normalize_browser(new_tab_match.group(1) or self.config.default_browser)
+            url = (new_tab_match.group(2) or "").strip()
+            return Plan(
+                response="Opening a new tab.",
+                actions=[
+                    Action(
+                        tool="browser_new_tab",
+                        args={"browser": browser, "url": url},
+                        reason="The user asked to open a new browser tab.",
+                    )
+                ],
+            )
+
+        close_tab_match = re.fullmatch(
+            r"(?:close|remove)\s+(?:the\s+)?(?:(safari|chrome|google chrome|firefox|arc|brave|edge)\s+)?(?:current\s+|active\s+)?tab",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if close_tab_match:
+            browser = self._normalize_browser(close_tab_match.group(1) or self.config.default_browser)
+            return Plan(
+                response="Closing the active tab.",
+                actions=[
+                    Action(
+                        tool="browser_close_tab",
+                        args={"browser": browser},
+                        reason="The user asked to close the active browser tab.",
+                    )
+                ],
+            )
+
+        reload_tab_match = re.fullmatch(
+            r"(?:reload|refresh)\s+(?:the\s+)?(?:(safari|chrome|google chrome|firefox|arc|brave|edge)\s+)?(?:current\s+|active\s+)?tab",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if reload_tab_match:
+            browser = self._normalize_browser(reload_tab_match.group(1) or self.config.default_browser)
+            return Plan(
+                response="Reloading the active tab.",
+                actions=[
+                    Action(
+                        tool="browser_reload_tab",
+                        args={"browser": browser},
+                        reason="The user asked to reload the active browser tab.",
+                    )
+                ],
+            )
+
+        switch_tab_match = re.fullmatch(
+            r"(?:go\s+to\s+|switch\s+to\s+)?(?:the\s+)?(next|previous|prev|left|right)\s+(?:(safari|chrome|google chrome|firefox|arc|brave|edge)\s+)?tab",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if switch_tab_match:
+            direction = switch_tab_match.group(1).lower()
+            if direction == "right":
+                direction = "next"
+            elif direction == "left":
+                direction = "previous"
+            browser = self._normalize_browser(switch_tab_match.group(2) or self.config.default_browser)
+            return Plan(
+                response=f"Switching to the {direction} tab.",
+                actions=[
+                    Action(
+                        tool="browser_switch_tab",
+                        args={"browser": browser, "direction": direction},
+                        reason="The user asked to switch browser tabs.",
+                    )
+                ],
+            )
+
+        active_tab_match = re.fullmatch(
+            r"(?:what|which)\s+(?:(safari|chrome|google chrome|firefox|arc|brave|edge)\s+)?tab\s+(?:am\s+i\s+on|is\s+open)|(?:show|tell\s+me)\s+(?:the\s+)?(?:current|active)\s+(?:(safari|chrome|google chrome|firefox|arc|brave|edge)\s+)?tab",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if active_tab_match:
+            browser = self._normalize_browser(
+                next((group for group in active_tab_match.groups() if group), self.config.default_browser)
+            )
+            return Plan(
+                response="Checking the active tab.",
+                actions=[
+                    Action(
+                        tool="browser_active_tab",
+                        args={"browser": browser},
+                        reason="The user asked which browser tab is active.",
                     )
                 ],
             )

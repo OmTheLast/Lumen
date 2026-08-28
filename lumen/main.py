@@ -333,7 +333,17 @@ def _speak_with_presence(text: str, presence: PresenceState | None) -> None:
 def _can_ack_without_llm(tool_names: list[str]) -> bool:
     if not tool_names:
         return False
-    quick_ack_tools = {"open_app", "open_url", "web_search", "screenshot"}
+    quick_ack_tools = {
+        "open_app",
+        "open_url",
+        "web_search",
+        "browser_new_tab",
+        "browser_close_tab",
+        "browser_reload_tab",
+        "browser_switch_tab",
+        "browser_active_tab",
+        "screenshot",
+    }
     return all(name in quick_ack_tools for name in tool_names)
 
 

@@ -96,3 +96,11 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Diagnosed native voice commands showing in the UI without action: macOS speech recognition can keep emitting partial transcripts without promptly marking them final.
 - Added a short native debounce timer so stable wake/manual transcripts are submitted to `/chat` after the user pauses.
 - Added a simple planner rule for plain `open youtube` so it opens `https://www.youtube.com` instead of trying to launch a nonexistent macOS app named YouTube.
+
+### Browser Control And Voice Presets
+
+- Added AppleScript-backed browser tools for new tab, close tab, reload tab, tab switching, and active tab inspection.
+- Added simple planner routes for natural commands like `new tab`, `close tab`, `next tab`, `reload tab`, and `what tab am I on`.
+- Smoke-tested Safari control by opening `https://example.com`, reading the active tab title/URL, and closing the tab.
+- Exposed stronger `mlx-whisper` voice presets in the model picker while keeping `whisper-tiny` as the default latency-first terminal model.
+- Current recommended terminal voice experiment: `mlx-community/whisper-large-v3-turbo-q4`.

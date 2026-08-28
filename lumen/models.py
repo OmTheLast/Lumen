@@ -22,6 +22,17 @@ class ModelOption:
     digest: str = ""
 
 
+STT_MODEL_PRESETS = [
+    ("mlx-community/whisper-tiny", "mlx-whisper · tiny · fastest"),
+    ("mlx-community/whisper-base-mlx", "mlx-whisper · base · faster/better"),
+    ("mlx-community/whisper-small-mlx", "mlx-whisper · small · balanced"),
+    ("mlx-community/distil-whisper-large-v3", "mlx-whisper · distil large-v3 · accurate"),
+    ("mlx-community/whisper-large-v3-turbo-q4", "mlx-whisper · large-v3 turbo q4 · recommended test"),
+    ("mlx-community/whisper-large-v3-turbo-8bit", "mlx-whisper · large-v3 turbo 8-bit · higher quality"),
+    ("mlx-community/whisper-large-v3-turbo", "mlx-whisper · large-v3 turbo · best quality/heaviest"),
+]
+
+
 def discover_models(config: Config) -> dict[str, Any]:
     options: list[ModelOption] = []
     providers: dict[str, str] = {}
@@ -35,17 +46,13 @@ def discover_models(config: Config) -> dict[str, Any]:
     options.extend(lm_studio_models)
 
     detected_ids = {option.id for option in options if option.available}
-    for model_id in {
-        config.planner_model,
-        config.router_model,
-        config.voice_stt_model,
-        "mlx-community/whisper-tiny",
-        "mlx-community/whisper-small-mlx",
-    }:
+    preset_labels = dict(STT_MODEL_PRESETS)
+    for model_id in {config.planner_model, config.router_model, config.voice_stt_model, *preset_labels}:
         if model_id and not any(option.id == model_id for option in options):
             provider = "mlx_whisper" if "whisper" in model_id.lower() else "configured"
             kind = "speech_to_text" if "whisper" in model_id.lower() else "chat"
-            options.append(ModelOption(model_id, provider, kind, model_id, available=False))
+            label = preset_labels.get(model_id, model_id)
+            options.append(ModelOption(model_id, provider, kind, label, available=False))
 
     options.sort(key=lambda item: (item.kind, item.provider, item.label.lower()))
     settings = config.model_settings()

@@ -44,6 +44,7 @@ assets/lumen-icon.svg
 - Local model detector for Ollama and LM Studio
 - Model selectors for planner, router, and speech-to-text
 - First-pass wake-word mode: say "Lumen" before a command in the native app
+- Browser tab controls for Safari and Chrome-family browsers
 - Optional live speech recognition and local voice transcription
 - Local command execution with confirmation for riskier tools
 
@@ -164,8 +165,17 @@ Try:
 open Safari
 search the web for Apple Silicon MLX Whisper
 open Chrome and search for local LLM agents
+new tab
+open new Chrome tab with example.com
+next tab
+previous tab
+reload tab
+close tab
+what tab am I on
 take a screenshot called desktop
 ```
+
+Browser controls currently use macOS AppleScript. Safari, Google Chrome, Brave Browser, and Microsoft Edge have first-class tab support; macOS may ask for automation permission the first time Lumen controls a browser.
 
 Riskier tools such as shell commands and file writes ask for confirmation.
 
@@ -193,10 +203,21 @@ To force a fixed recording window:
 /voice 5
 ```
 
-The default speech-to-text model is `mlx-community/whisper-tiny` for speed. You can override it:
+The default speech-to-text model is `mlx-community/whisper-tiny` for speed. The model picker also includes stronger `mlx-whisper` presets:
+
+```text
+mlx-community/whisper-base-mlx
+mlx-community/whisper-small-mlx
+mlx-community/distil-whisper-large-v3
+mlx-community/whisper-large-v3-turbo-q4
+mlx-community/whisper-large-v3-turbo-8bit
+mlx-community/whisper-large-v3-turbo
+```
+
+For terminal `/voice`, try `mlx-community/whisper-large-v3-turbo-q4` first if you want better accuracy without jumping straight to the heaviest model. You can override the model manually:
 
 ```sh
-LUMEN_VOICE_STT_MODEL=mlx-community/whisper-small-mlx uv run python -m lumen.main
+LUMEN_VOICE_STT_MODEL=mlx-community/whisper-large-v3-turbo-q4 uv run python -m lumen.main
 ```
 
 The first transcription may take longer while the Whisper model downloads.
