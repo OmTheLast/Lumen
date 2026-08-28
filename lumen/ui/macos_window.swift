@@ -106,6 +106,7 @@ final class NativeVoiceController: NSObject, WKScriptMessageHandler {
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private var finalizationTimer: Timer?
     private var isRecording = false
     private var listenMode: ListenMode?
     private var wakeModeEnabled = true
@@ -206,11 +207,13 @@ final class NativeVoiceController: NSObject, WKScriptMessageHandler {
         switch listenMode {
         case .wake:
             if let command = commandAfterWakeWord(in: text) {
-                setTranscript("Lumen")
+                setTranscript(command.isEmpty ? "Lumen" : command)
                 if command.isEmpty {
                     switchToCommandMode()
-                } else {
+                } else if isFinal {
                     finish(command: command)
+                } else {
+                    scheduleFinish(command: command)
                 }
                 return
             }
@@ -221,11 +224,15 @@ final class NativeVoiceController: NSObject, WKScriptMessageHandler {
             setTranscript(text)
             if isFinal {
                 finish(command: text)
+            } else {
+                scheduleFinish(command: text)
             }
         case .manual:
             setTranscript(text)
             if isFinal {
                 finish(command: text)
+            } else {
+                scheduleFinish(command: text)
             }
         case nil:
             return
@@ -263,8 +270,19 @@ final class NativeVoiceController: NSObject, WKScriptMessageHandler {
         }
     }
 
+    private func scheduleFinish(command: String) {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        finalizationTimer?.invalidate()
+        finalizationTimer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: false) { [weak self] _ in
+            self?.finish(command: trimmed)
+        }
+    }
+
     private func finish(command: String) {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        finalizationTimer?.invalidate()
+        finalizationTimer = nil
         stop(restartWake: false)
         if !trimmed.isEmpty {
             postCommand(trimmed)
@@ -283,6 +301,8 @@ final class NativeVoiceController: NSObject, WKScriptMessageHandler {
         audioEngine.inputNode.removeTap(onBus: 0)
         request?.endAudio()
         task?.cancel()
+        finalizationTimer?.invalidate()
+        finalizationTimer = nil
         request = nil
         task = nil
         isRecording = false

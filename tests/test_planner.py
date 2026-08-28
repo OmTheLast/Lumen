@@ -39,3 +39,10 @@ def test_youtube_search_simple_plan():
 
     assert plan.actions[0].tool == "open_url"
     assert plan.actions[0].args["url"] == "https://www.youtube.com/results?search_query=mit"
+
+
+def test_open_youtube_simple_plan_opens_url():
+    plan = make_planner().plan("open youtube")
+
+    assert plan.actions[0].tool == "open_url"
+    assert plan.actions[0].args["url"] == "https://www.youtube.com"

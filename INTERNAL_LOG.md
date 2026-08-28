@@ -90,3 +90,9 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 
 - Replaced the overly simple lens-style app icon with a code-drawn framework orb based on the bottom-right desktop overlay.
 - Kept the selected icon source in `assets/lumen-icon.svg` and regenerated `assets/lumen-icon.png` for macOS `.icns` packaging.
+
+### Wake Command Follow-Through
+
+- Diagnosed native voice commands showing in the UI without action: macOS speech recognition can keep emitting partial transcripts without promptly marking them final.
+- Added a short native debounce timer so stable wake/manual transcripts are submitted to `/chat` after the user pauses.
+- Added a simple planner rule for plain `open youtube` so it opens `https://www.youtube.com` instead of trying to launch a nonexistent macOS app named YouTube.

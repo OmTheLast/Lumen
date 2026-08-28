@@ -171,6 +171,19 @@ class Planner:
                 ],
             )
 
+        youtube_open = re.fullmatch(r"(?:open|launch|start)\s+(?:youtube|you\s*tube)", text.strip(), re.IGNORECASE)
+        if youtube_open:
+            return Plan(
+                response="Opening YouTube.",
+                actions=[
+                    Action(
+                        tool="open_url",
+                        args={"url": "https://www.youtube.com", "browser": self.config.default_browser},
+                        reason="The user asked to open YouTube.",
+                    )
+                ],
+            )
+
         app_match = re.fullmatch(r"(open|launch|start)\s+(.+)", text.strip(), re.IGNORECASE)
         if app_match:
             app_name = app_match.group(2).strip()
