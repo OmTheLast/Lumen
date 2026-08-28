@@ -1,34 +1,73 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
   <title id="title">Lumen icon</title>
-  <desc id="desc">A warm amber light suspended inside a dark circular lens.</desc>
+  <desc id="desc">A warm orange framework orb with glowing nodes and a moving core.</desc>
   <defs>
-    <radialGradient id="background" cx="50%" cy="45%" r="56%">
-      <stop offset="0" stop-color="#4a2a0e"/>
-      <stop offset="0.58" stop-color="#211208"/>
-      <stop offset="1" stop-color="#080503"/>
+    <radialGradient id="tile" cx="50%" cy="48%" r="64%">
+      <stop offset="0" stop-color="#ffde91" stop-opacity="0.92"/>
+      <stop offset="0.2" stop-color="#ff9824" stop-opacity="0.42"/>
+      <stop offset="0.58" stop-color="#642407" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#090301" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="light" cx="50%" cy="50%" r="50%">
-      <stop offset="0" stop-color="#fffbd7"/>
-      <stop offset="0.12" stop-color="#fff2a3"/>
-      <stop offset="0.3" stop-color="#ffc45d" stop-opacity="0.96"/>
-      <stop offset="0.62" stop-color="#ff8a2a" stop-opacity="0.34"/>
-      <stop offset="1" stop-color="#ff6a1c" stop-opacity="0"/>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff9dc"/>
+      <stop offset="0.3" stop-color="#ffc75d"/>
+      <stop offset="0.72" stop-color="#ff7512" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ff7512" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffd16c" stop-opacity="0.92"/>
-      <stop offset="0.5" stop-color="#9b531b" stop-opacity="0.46"/>
-      <stop offset="1" stop-color="#ff9a32" stop-opacity="0.78"/>
-    </linearGradient>
-    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="34"/>
+    <filter id="blurGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="13" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
-  <circle cx="512" cy="512" r="472" fill="url(#background)"/>
-  <circle cx="512" cy="512" r="469" fill="none" stroke="url(#rim)" stroke-width="10"/>
-  <circle cx="512" cy="512" r="382" fill="none" stroke="#f59a35" stroke-opacity="0.16" stroke-width="3"/>
-  <circle cx="512" cy="512" r="210" fill="#ff8a2a" fill-opacity="0.2" filter="url(#glow)"/>
-  <circle cx="512" cy="512" r="238" fill="url(#light)"/>
-  <path d="M512 243v144M512 637v144M243 512h144M637 512h144" stroke="#ffc568" stroke-linecap="round" stroke-opacity="0.22" stroke-width="12"/>
-  <circle cx="512" cy="512" r="68" fill="#fff5b3" opacity="0.2" filter="url(#glow)"/>
-  <circle cx="512" cy="512" r="35" fill="#fffce5"/>
+
+  <rect width="1024" height="1024" rx="220" fill="#110503"/>
+  <rect x="17" y="17" width="990" height="990" rx="205" fill="none" stroke="#5b2208" stroke-width="5" opacity="0.78"/>
+
+  <g transform="translate(512 500) scale(3.08)">
+    <circle r="126" fill="url(#tile)" opacity="0.95"/>
+    <circle r="92" fill="none" stroke="#ff9b22" stroke-width="2.2" opacity="0.72"/>
+    <circle r="118" fill="none" stroke="#ffc46b" stroke-width="1.15" opacity="0.3"/>
+    <circle r="74" fill="none" stroke="#ff7b18" stroke-width="0.9" opacity="0.22"/>
+
+    <ellipse rx="112" ry="46" fill="none" stroke="#ffb34d" stroke-width="2.1" opacity="0.66" transform="rotate(-11)"/>
+    <ellipse rx="110" ry="43" fill="none" stroke="#ff8b1a" stroke-width="1.4" opacity="0.42" transform="rotate(54)"/>
+    <ellipse rx="104" ry="40" fill="none" stroke="#ffd184" stroke-width="1" opacity="0.36" transform="rotate(108)"/>
+
+    <path d="M0,-116 L0,-78 M0,78 L0,116 M-116,0 L-78,0 M78,0 L116,0" stroke="#ff8b1a" stroke-width="3" stroke-linecap="round" opacity="0.36"/>
+    <path d="M82,-82 L56,-56 M-82,82 L-56,56 M-82,-82 L-56,-56 M82,82 L56,56" stroke="#ffc66b" stroke-width="1.4" stroke-linecap="round" opacity="0.26"/>
+
+    <path d="M-88,-12 C-58,-70 18,-86 82,-42 C48,8 12,56 -70,72 Z" fill="none" stroke="#ffad3c" stroke-width="2.2" opacity="0.62"/>
+    <path d="M-74,48 C-16,-88 76,-68 90,24 C35,88 -42,76 -88,-10" fill="none" stroke="#ffc66b" stroke-width="1.25" opacity="0.48"/>
+    <path d="M-96,4 C-20,-30 42,-28 98,16" fill="none" stroke="#ff7b18" stroke-width="1.4" opacity="0.54"/>
+    <path d="M-68,-58 C-26,24 12,50 78,66" fill="none" stroke="#ffb34d" stroke-width="1.1" opacity="0.45"/>
+    <path d="M-80,44 L-38,-64 L18,72 L72,-38 L92,18 L24,84 L-60,70 L-92,-4 Z" fill="none" stroke="#f28a19" stroke-width="1.1" opacity="0.52"/>
+    <path d="M-54,-78 L-16,-18 L38,-62 L82,-2 L42,54 L-28,72 L-76,22 Z" fill="none" stroke="#ffd184" stroke-width="0.8" opacity="0.4"/>
+
+    <g filter="url(#blurGlow)">
+      <circle cx="-80" cy="44" r="4" fill="#ffb13a"/>
+      <circle cx="-38" cy="-64" r="3.5" fill="#ff9122"/>
+      <circle cx="18" cy="72" r="3.8" fill="#ffd184"/>
+      <circle cx="72" cy="-38" r="4.2" fill="#ffad3c"/>
+      <circle cx="92" cy="18" r="3" fill="#ff7b18"/>
+      <circle cx="24" cy="84" r="2.8" fill="#ffc66b"/>
+      <circle cx="-60" cy="70" r="3.2" fill="#ff8b1a"/>
+      <circle cx="-92" cy="-4" r="3.6" fill="#ffbd57"/>
+      <circle cx="-16" cy="-18" r="2.6" fill="#ffd184"/>
+      <circle cx="38" cy="-62" r="2.8" fill="#ff9c24"/>
+      <circle cx="42" cy="54" r="2.9" fill="#ffba55"/>
+    </g>
+
+    <g filter="url(#blurGlow)">
+      <circle cx="14" cy="-4" r="34" fill="url(#core)"/>
+      <circle cx="14" cy="-4" r="7" fill="#fff6cf"/>
+    </g>
+  </g>
+
+  <g transform="translate(825 811)">
+    <circle r="63" fill="#120501" stroke="#ff8b1a" stroke-width="10"/>
+    <circle r="21" fill="#ff9b22"/>
+  </g>
 </svg>

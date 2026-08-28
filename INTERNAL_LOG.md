@@ -85,3 +85,8 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Added `Lumen.icns` generation from `assets/lumen-icon.png` during app packaging and declared `CFBundleIconFile` for Dock/app-switcher identity.
 - Changed `Lumen.app` so the Swift native window is the actual bundle executable; it starts the Python backend itself and gives macOS speech recognition the app `Info.plist` privacy keys it requires.
 - Fixed a native-window crash caused by encoding plain Swift strings through `JSONSerialization` without fragment support.
+
+### App Icon Refinement
+
+- Replaced the overly simple lens-style app icon with a code-drawn framework orb based on the bottom-right desktop overlay.
+- Kept the selected icon source in `assets/lumen-icon.svg` and regenerated `assets/lumen-icon.png` for macOS `.icns` packaging.
