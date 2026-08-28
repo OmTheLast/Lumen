@@ -65,8 +65,8 @@ class Config:
         "LUMEN_VOICE_STT_MODEL",
         "mlx-community/whisper-tiny",
     )
-    voice_auto_max_seconds: float = float(os.getenv("LUMEN_VOICE_AUTO_MAX_SECONDS", "12"))
-    voice_silence_seconds: float = float(os.getenv("LUMEN_VOICE_SILENCE_SECONDS", "0.8"))
+    voice_auto_max_seconds: float = float(os.getenv("LUMEN_VOICE_AUTO_MAX_SECONDS", "8"))
+    voice_silence_seconds: float = float(os.getenv("LUMEN_VOICE_SILENCE_SECONDS", "0.45"))
     voice_silence_threshold: float = float(os.getenv("LUMEN_VOICE_SILENCE_THRESHOLD", "0.012"))
 
     def model_settings(self) -> dict[str, str]:

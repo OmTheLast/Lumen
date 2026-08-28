@@ -40,7 +40,7 @@ def record_command_wav(
     silence_seconds: float = 0.8,
     silence_threshold: float = 0.012,
     sample_rate: int = 16_000,
-    block_seconds: float = 0.12,
+    block_seconds: float = 0.08,
 ) -> str:
     """Record until speech trails into silence, then return a WAV path.
 

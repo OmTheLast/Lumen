@@ -52,7 +52,28 @@ if command -v swiftc >/dev/null 2>&1; then
   swiftc "$ROOT_DIR/lumen/ui/macos_window.swift" -O -o "$ROOT_DIR/dist/helpers/lumen-window"
   swiftc "$ROOT_DIR/lumen/ui/macos_overlay.swift" -O -o "$ROOT_DIR/dist/helpers/lumen-overlay"
 else
-  echo "swiftc unavailable; native Lumen window and AppKit orb helper will be skipped." >&2
+  echo "swiftc unavailable; Lumen.app packaging needs Xcode Command Line Tools." >&2
+  exit 1
+fi
+
+ICON_SOURCE="$ROOT_DIR/assets/lumen-icon.png"
+ICONSET_DIR="$ROOT_DIR/dist/helpers/Lumen.iconset"
+if [ -f "$ICON_SOURCE" ] && command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then
+  rm -rf "$ICONSET_DIR"
+  mkdir -p "$ICONSET_DIR"
+  sips -z 16 16 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_16x16.png" >/dev/null
+  sips -z 32 32 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_16x16@2x.png" >/dev/null
+  sips -z 32 32 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_32x32.png" >/dev/null
+  sips -z 64 64 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_32x32@2x.png" >/dev/null
+  sips -z 128 128 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_128x128.png" >/dev/null
+  sips -z 256 256 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_128x128@2x.png" >/dev/null
+  sips -z 256 256 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_256x256.png" >/dev/null
+  sips -z 512 512 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_256x256@2x.png" >/dev/null
+  sips -z 512 512 "$ICON_SOURCE" --out "$ICONSET_DIR/icon_512x512.png" >/dev/null
+  cp "$ICON_SOURCE" "$ICONSET_DIR/icon_512x512@2x.png"
+  iconutil -c icns "$ICONSET_DIR" -o "$APP_DIR/Contents/Resources/Lumen.icns"
+else
+  echo "Icon tools unavailable; Lumen.app will use the default app icon." >&2
 fi
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
@@ -72,44 +93,27 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <string>0.3.0</string>
   <key>CFBundleExecutable</key>
   <string>Lumen</string>
+  <key>CFBundleIconFile</key>
+  <string>Lumen</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Lumen uses the microphone for optional local voice commands.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Lumen uses speech recognition to turn your voice commands into local agent requests.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>Lumen can open apps and browser pages when you request desktop actions.</string>
 </dict>
 </plist>
 PLIST
 
-cat > "$APP_DIR/Contents/MacOS/Lumen" <<LAUNCHER
-#!/usr/bin/env bash
-set -euo pipefail
-
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH"
-export LUMEN_REPO_DIR="\${LUMEN_REPO_DIR:-$ROOT_DIR}"
-export LUMEN_UI_OPEN_BROWSER="\${LUMEN_UI_OPEN_BROWSER:-0}"
-export LUMEN_APP_WINDOW_ENABLED="\${LUMEN_APP_WINDOW_ENABLED:-1}"
-export LUMEN_OVERLAY_ENABLED="\${LUMEN_OVERLAY_ENABLED:-1}"
-
-LOG_DIR="\$HOME/Library/Logs/Lumen"
-mkdir -p "\$LOG_DIR"
-
-if ! command -v uv >/dev/null 2>&1; then
-  osascript -e 'display dialog "Lumen needs uv. Install it from https://docs.astral.sh/uv/ and run the installer again." buttons {"OK"} default button "OK" with icon caution' >/dev/null 2>&1 || true
-  exit 127
-fi
-
-cd "\$LUMEN_REPO_DIR"
-exec uv run python -m lumen.main --app >> "\$LOG_DIR/lumen.log" 2>&1
-LAUNCHER
-
-chmod +x "$APP_DIR/Contents/MacOS/Lumen"
+swiftc "$ROOT_DIR/lumen/ui/macos_window.swift" -O -o "$APP_DIR/Contents/MacOS/Lumen"
+printf '%s\n' "$ROOT_DIR" > "$APP_DIR/Contents/Resources/repo-path.txt"
 
 cat > "$APP_DIR/Contents/Resources/README.txt" <<README
-Lumen.app is a launcher wrapper around the local Lumen repository.
+Lumen.app is the native window for the local Lumen repository.
 
 Repository:
 $ROOT_DIR

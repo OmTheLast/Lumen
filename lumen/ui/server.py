@@ -1444,6 +1444,10 @@ async function saveModelSettings() {
 }
 
 async function toggleVoiceMessage() {
+  if (window.lumenNativeVoice && window.lumenNativeVoice.available) {
+    window.lumenNativeVoice.toggle();
+    return;
+  }
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (Recognition) {
     toggleLiveSpeechRecognition(Recognition);

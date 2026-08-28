@@ -43,6 +43,7 @@ assets/lumen-icon.svg
 - Transparent bottom-right AppKit orb overlay
 - Local model detector for Ollama and LM Studio
 - Model selectors for planner, router, and speech-to-text
+- First-pass wake-word mode: say "Lumen" before a command in the native app
 - Optional live speech recognition and local voice transcription
 - Local command execution with confirmation for riskier tools
 
@@ -182,9 +183,9 @@ Then run Lumen and use:
 /voice
 ```
 
-Lumen records until you stop speaking, transcribes with `mlx-whisper`, executes the command, and speaks the response with macOS `say`.
+Lumen records until you stop speaking, transcribes with `mlx-whisper`, executes the command, and speaks the response with macOS `say`. The command recorder is tuned for short instructions: by default it listens for up to 8 seconds and stops after roughly 0.45 seconds of silence.
 
-In WebKit views or browsers that support speech recognition, the microphone button can use live recognition and send the recognized command directly to Lumen. That path avoids waiting for a full audio upload before command execution. If live recognition is unavailable, Lumen falls back to the existing voice-note path.
+In `Lumen.app`, the microphone button uses native macOS speech recognition and streams partial results into the interface before sending the final command to Lumen. This avoids waiting for a full audio file before command execution. The app also starts a first-pass wake listener: say "Lumen" followed by a command, or say "Lumen" and then give the command after the app wakes. Terminal voice mode still uses local `mlx-whisper`.
 
 To force a fixed recording window:
 
@@ -199,3 +200,5 @@ LUMEN_VOICE_STT_MODEL=mlx-community/whisper-small-mlx uv run python -m lumen.mai
 ```
 
 The first transcription may take longer while the Whisper model downloads.
+
+For the fastest interactive path, use the Lumen app window. The next architecture step is replacing speech-recognition-based wake detection with a tiny local wake-word model so idle listening is lighter and more private.

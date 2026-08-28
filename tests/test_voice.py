@@ -12,7 +12,8 @@ def test_parse_default_voice_command_uses_auto_mode():
     mode = _parse_voice_command("/voice")
 
     assert mode.seconds is None
-    assert mode.max_seconds == Config().voice_auto_max_seconds
+    assert mode.max_seconds == 8
+    assert mode.silence_seconds == 0.45
 
 
 def test_parse_auto_voice_command():

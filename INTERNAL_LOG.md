@@ -72,3 +72,16 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Reframed `README.md` as the public-facing GitHub page for Lumen as a local macOS desktop agent.
 - Removed Cloudflare deployment/install-hub language from the public README.
 - Documented the Lumen image asset at `assets/lumen-icon.png` with editable source at `assets/lumen-icon.svg`.
+
+## 2026-08-28
+
+### Voice Latency
+
+- Tightened local command recording defaults: 8 second maximum and 0.45 second silence cutoff.
+- Tuned `mlx-whisper` decoding for short command latency with deterministic single-pass settings.
+- Added native macOS speech recognition to the `Lumen.app` window through a WebKit message bridge.
+- The app-window mic button now prefers native streaming speech recognition; terminal `/voice` keeps using local Whisper.
+- Added first-pass wake-word mode in the native app window: macOS speech recognition listens for "Lumen," then captures and posts the following command.
+- Added `Lumen.icns` generation from `assets/lumen-icon.png` during app packaging and declared `CFBundleIconFile` for Dock/app-switcher identity.
+- Changed `Lumen.app` so the Swift native window is the actual bundle executable; it starts the Python backend itself and gives macOS speech recognition the app `Info.plist` privacy keys it requires.
+- Fixed a native-window crash caused by encoding plain Swift strings through `JSONSerialization` without fragment support.

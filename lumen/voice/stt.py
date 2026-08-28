@@ -34,7 +34,13 @@ class MlxWhisperTranscriber:
                 "Speech-to-text needs `mlx-whisper`. Install with `uv sync --extra voice`."
             ) from exc
 
-        kwargs: dict[str, Any] = {"path_or_hf_repo": self.model}
+        kwargs: dict[str, Any] = {
+            "path_or_hf_repo": self.model,
+            "verbose": False,
+            "temperature": 0.0,
+            "condition_on_previous_text": False,
+            "fp16": True,
+        }
         if self.language:
             kwargs["language"] = self.language
 
