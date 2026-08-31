@@ -9,8 +9,9 @@ from typing import NamedTuple
 
 from lumen.agent.executor import Executor
 from lumen.agent.planner import Planner
-from lumen.config import Config
+from lumen.config import Config, TASKS_PATH
 from lumen.llm.ollama_client import OllamaClient
+from lumen.tasks import TaskEngine, TaskStore
 from lumen.tools import TOOLS
 from lumen.ui.overlay import start_overlay
 from lumen.ui.overlay import OverlayHandle
@@ -27,13 +28,21 @@ def main() -> int:
     config = Config()
     planner = Planner(config, OllamaClient(config.ollama_url))
     executor = Executor()
+    task_planner = Planner(config, OllamaClient(config.ollama_url))
+    task_executor = Executor()
     presence = PresenceState()
     chat_bridge = ChatBridge()
-    ui_server = _start_presence_ui(config, presence, chat_bridge)
+    task_store = TaskStore(TASKS_PATH)
+    task_engine = TaskEngine(
+        task_store,
+        lambda objective: process_command(objective, task_planner, task_executor, presence),
+    )
+    task_engine.start()
+    ui_server = _start_presence_ui(config, presence, chat_bridge, task_engine, task_store)
     app_window = _start_app_window(config, ui_server)
     overlay = _start_overlay(config, ui_server)
     stop_event = threading.Event()
-    worker = _start_web_command_worker(chat_bridge, planner, executor, presence, stop_event)
+    worker = _start_web_command_worker(chat_bridge, planner, executor, presence, stop_event, task_engine)
 
     print("Lumen v3 initialized")
     print(f"Planner: {config.planner_model}")
@@ -54,7 +63,7 @@ def main() -> int:
     print()
 
     if no_stdin:
-        return _run_without_stdin(presence, ui_server, app_window, overlay, stop_event, worker)
+        return _run_without_stdin(presence, ui_server, app_window, overlay, stop_event, worker, task_engine)
 
     while True:
         try:
@@ -62,12 +71,12 @@ def main() -> int:
         except KeyboardInterrupt:
             print("\nShutting down Lumen.")
             presence.update("idle", "Lumen is shutting down.", detail="Terminal interrupted.")
-            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
+            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker, task_engine)
             return 0
         except EOFError:
             presence.update("idle", "Lumen is shutting down.", detail="Terminal input closed.")
             print()
-            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
+            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker, task_engine)
             return 0
 
         if not user_input:
@@ -75,7 +84,7 @@ def main() -> int:
         if user_input.lower() in {"quit", "exit"}:
             print("Shutting down Lumen.")
             presence.update("idle", "Lumen is shutting down.", detail="Goodbye.")
-            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
+            _shutdown_presence(ui_server, app_window, overlay, stop_event, worker, task_engine)
             return 0
 
         if user_input.startswith("/voice"):
@@ -94,6 +103,7 @@ def _run_without_stdin(
     overlay: OverlayHandle | None,
     stop_event: threading.Event,
     worker: threading.Thread,
+    task_engine: TaskEngine | None = None,
 ) -> int:
     presence.update("idle", "Lumen is running.", detail="Use the Lumen app window.")
     try:
@@ -101,13 +111,13 @@ def _run_without_stdin(
             if app_window is not None and app_window.process.poll() is not None:
                 print("Lumen window closed. Shutting down.")
                 presence.update("idle", "Lumen is shutting down.", detail="Window closed.")
-                _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
+                _shutdown_presence(ui_server, app_window, overlay, stop_event, worker, task_engine)
                 return 0
             time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nShutting down Lumen.")
         presence.update("idle", "Lumen is shutting down.", detail="App interrupted.")
-        _shutdown_presence(ui_server, app_window, overlay, stop_event, worker)
+        _shutdown_presence(ui_server, app_window, overlay, stop_event, worker, task_engine)
         return 0
 
 
@@ -240,11 +250,25 @@ class VoiceMode(NamedTuple):
     stt_model: str
 
 
-def _start_presence_ui(config: Config, presence: PresenceState, chat_bridge: ChatBridge) -> PresenceServer | None:
+def _start_presence_ui(
+    config: Config,
+    presence: PresenceState,
+    chat_bridge: ChatBridge,
+    task_engine: TaskEngine | None = None,
+    task_store: TaskStore | None = None,
+) -> PresenceServer | None:
     if not config.ui_enabled:
         return None
 
-    server = PresenceServer(presence, host=config.ui_host, port=config.ui_port, chat_bridge=chat_bridge, config=config)
+    server = PresenceServer(
+        presence,
+        host=config.ui_host,
+        port=config.ui_port,
+        chat_bridge=chat_bridge,
+        config=config,
+        task_engine=task_engine,
+        task_store=task_store,
+    )
     try:
         server.start(open_browser=config.ui_open_browser)
     except RuntimeError as exc:
@@ -271,11 +295,19 @@ def _start_web_command_worker(
     executor: Executor,
     presence: PresenceState,
     stop_event: threading.Event,
+    task_engine: TaskEngine | None = None,
 ) -> threading.Thread:
     def run() -> None:
         while not stop_event.is_set():
             command = chat_bridge.get_next(timeout=0.25)
             if command is None:
+                continue
+            background_objective = _parse_background_task_command(command)
+            if background_objective is not None and task_engine is not None:
+                task = task_engine.submit(background_objective)
+                response = f"Started background task {task.id}: {task.title}"
+                presence.update("acting", "Background task queued.", detail=task.title, transcript=command)
+                chat_bridge.append_lumen_message(response)
                 continue
             response = process_command(command, planner, executor, presence)
             chat_bridge.append_lumen_message(response or "Done.")
@@ -291,11 +323,14 @@ def _shutdown_presence(
     overlay: OverlayHandle | None,
     stop_event: threading.Event | None = None,
     worker: threading.Thread | None = None,
+    task_engine: TaskEngine | None = None,
 ) -> None:
     if stop_event is not None:
         stop_event.set()
     if worker is not None:
         worker.join(timeout=1)
+    if task_engine is not None:
+        task_engine.stop()
     if app_window is not None:
         app_window.process.terminate()
         try:
@@ -345,6 +380,27 @@ def _can_ack_without_llm(tool_names: list[str]) -> bool:
         "screenshot",
     }
     return all(name in quick_ack_tools for name in tool_names)
+
+
+def _parse_background_task_command(command: str) -> str | None:
+    lowered = command.strip().lower()
+    prefixes = (
+        "background task",
+        "start background task",
+        "create background task",
+        "run background task",
+        "task",
+        "start task",
+        "create task",
+        "run task",
+    )
+    for prefix in prefixes:
+        if lowered == prefix:
+            return None
+        marker = f"{prefix} "
+        if lowered.startswith(marker):
+            return command.strip()[len(marker):].strip() or None
+    return None
 
 
 def _parse_voice_command(command: str, config: Config | None = None) -> VoiceMode:

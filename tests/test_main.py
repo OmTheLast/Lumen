@@ -1,4 +1,4 @@
-from lumen.main import _can_ack_without_llm, _should_run_without_stdin
+from lumen.main import _can_ack_without_llm, _parse_background_task_command, _should_run_without_stdin
 
 
 def test_quick_tools_can_ack_without_llm():
@@ -17,3 +17,9 @@ def test_app_mode_disables_terminal_input():
     assert _should_run_without_stdin(["--app"])
     assert _should_run_without_stdin(["--no-stdin"])
     assert not _should_run_without_stdin([])
+
+
+def test_parse_background_task_command():
+    assert _parse_background_task_command("task organize my downloads") == "organize my downloads"
+    assert _parse_background_task_command("start background task research MLX voice models") == "research MLX voice models"
+    assert _parse_background_task_command("open Safari") is None

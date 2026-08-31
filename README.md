@@ -44,6 +44,7 @@ assets/lumen-icon.svg
 - Local model detector for Ollama and LM Studio
 - Model selectors for planner, router, and speech-to-text
 - First-pass wake-word mode: say "Lumen" before a command in the native app
+- Persistent background task queue
 - Browser tab controls for Safari and Chrome-family browsers
 - Optional live speech recognition and local voice transcription
 - Local command execution with confirmation for riskier tools
@@ -178,6 +179,23 @@ take a screenshot called desktop
 Browser controls currently use macOS AppleScript. Safari, Google Chrome, Brave Browser, and Microsoft Edge have first-class tab support; macOS may ask for automation permission the first time Lumen controls a browser.
 
 Riskier tools such as shell commands and file writes ask for confirmation.
+
+## Background tasks
+
+Lumen can queue local background tasks from the app or from chat/voice commands:
+
+```text
+task research Apple Silicon local voice models
+start background task open a new tab with example.com
+```
+
+Tasks are stored locally at:
+
+```text
+~/.lumen/tasks.json
+```
+
+The first version of the task engine runs queued objectives one at a time through Lumen's existing planner and tools, records status/events/results, and exposes recent tasks in the app window plus the local `/tasks` API. This is the foundation for longer-running autonomous work; multi-step planning, pause/resume controls, and rich approval UI are still upcoming.
 
 ## Voice
 

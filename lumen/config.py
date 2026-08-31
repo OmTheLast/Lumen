@@ -10,6 +10,7 @@ from typing import Any
 
 
 CONFIG_PATH = Path(os.path.expanduser(os.getenv("LUMEN_CONFIG_PATH", "~/.lumen/config.json")))
+TASKS_PATH = Path(os.path.expanduser(os.getenv("LUMEN_TASKS_PATH", "~/.lumen/tasks.json")))
 
 
 MODEL_SETTING_KEYS = {

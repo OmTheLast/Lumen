@@ -104,3 +104,13 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Smoke-tested Safari control by opening `https://example.com`, reading the active tab title/URL, and closing the tab.
 - Exposed stronger `mlx-whisper` voice presets in the model picker while keeping `whisper-tiny` as the default latency-first terminal model.
 - Current recommended terminal voice experiment: `mlx-community/whisper-large-v3-turbo-q4`.
+
+## 2026-08-31
+
+### Background Task Engine
+
+- Added a persistent task store at `~/.lumen/tasks.json`.
+- Added a background task worker that requeues unfinished tasks after restart and runs objectives through Lumen's existing planner/tool loop.
+- Added `/tasks` API support for listing and creating local background tasks.
+- Added a compact task panel to the app window with a task input and recent task statuses.
+- Added chat command routing for `task ...`, `start task ...`, and `start background task ...` so voice/chat can queue work without blocking the console response.

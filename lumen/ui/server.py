@@ -11,6 +11,7 @@ import webbrowser
 
 from lumen.config import Config
 from lumen.models import discover_models
+from lumen.tasks import TaskEngine, TaskStore, task_to_dict
 from lumen.ui.state import ChatBridge, PresenceState
 
 
@@ -22,10 +23,14 @@ class PresenceServer:
         port: int = 8765,
         chat_bridge: ChatBridge | None = None,
         config: Config | None = None,
+        task_engine: TaskEngine | None = None,
+        task_store: TaskStore | None = None,
     ) -> None:
         self.state = state
         self.chat_bridge = chat_bridge or ChatBridge()
         self.config = config or Config()
+        self.task_engine = task_engine
+        self.task_store = task_store
         self._config_lock = threading.Lock()
         self.host = host
         self.port = port
@@ -66,6 +71,8 @@ class PresenceServer:
         chat_bridge = self.chat_bridge
         config = self.config
         config_lock = self._config_lock
+        task_engine = self.task_engine
+        task_store = self.task_store
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
@@ -89,6 +96,9 @@ class PresenceServer:
                     with config_lock:
                         self._send_json(discover_models(config))
                     return
+                if route == "/tasks":
+                    self._send_json(task_store.snapshot() if task_store is not None else {"tasks": []})
+                    return
                 self.send_error(404)
 
             def do_POST(self) -> None:
@@ -102,6 +112,24 @@ class PresenceServer:
                     chat_bridge.post_user_message(text)
                     presence.update("thinking", "Command received.", detail=text, transcript=text)
                     self._send_json({"ok": True})
+                    return
+                if route == "/tasks":
+                    if task_engine is None:
+                        self._send_json({"ok": False, "error": "task engine unavailable"}, status=503)
+                        return
+                    payload = self._read_json()
+                    objective = str(payload.get("objective") or "").strip()[:2000]
+                    title = str(payload.get("title") or "").strip()[:120] or None
+                    if not objective:
+                        self._send_json({"ok": False, "error": "empty objective"}, status=400)
+                        return
+                    try:
+                        task = task_engine.submit(objective, title=title)
+                    except ValueError as exc:
+                        self._send_json({"ok": False, "error": str(exc)}, status=400)
+                        return
+                    presence.update("acting", "Background task queued.", detail=task.title, transcript=objective)
+                    self._send_json({"ok": True, "task": task_to_dict(task)})
                     return
                 if route == "/settings":
                     payload = self._read_json()
@@ -218,6 +246,17 @@ INDEX_HTML = """<!doctype html>
           <strong>Chat / voice</strong>
         </div>
         <div id="chatLog" class="chat-log"></div>
+        <section class="task-panel" aria-label="Background tasks">
+          <div class="task-head">
+            <span>background tasks</span>
+            <strong id="taskCount">0</strong>
+          </div>
+          <div id="taskList" class="task-list"></div>
+          <form id="taskForm" class="task-form">
+            <input id="taskInput" name="objective" autocomplete="off" placeholder="Queue background task..." />
+            <button type="submit">Queue</button>
+          </form>
+        </section>
         <section class="model-panel" aria-label="Model settings">
           <div class="model-head">
             <span>models</span>
@@ -623,7 +662,7 @@ h1 {
   bottom: 116px;
   width: min(330px, calc(100% - 96px));
   display: grid;
-  grid-template-rows: auto minmax(96px, 1fr) auto auto;
+  grid-template-rows: auto minmax(84px, 1fr) auto auto auto;
   gap: 12px;
   padding: 14px;
   border: 1px solid rgba(255, 143, 45, 0.24);
@@ -661,7 +700,8 @@ h1 {
   max-height: 166px;
 }
 
-.model-panel {
+.model-panel,
+.task-panel {
   display: grid;
   gap: 7px;
   padding: 9px;
@@ -669,7 +709,8 @@ h1 {
   background: rgba(8, 4, 2, 0.44);
 }
 
-.model-head {
+.model-head,
+.task-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -677,10 +718,83 @@ h1 {
 }
 
 .model-head span,
-.model-panel label span {
+.model-panel label span,
+.task-head span {
   color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
+}
+
+.task-head strong {
+  color: var(--amber);
+  font-size: 11px;
+}
+
+.task-list {
+  display: grid;
+  gap: 6px;
+  max-height: 104px;
+  overflow: hidden;
+}
+
+.task-item {
+  display: grid;
+  gap: 3px;
+  border-left: 2px solid rgba(255, 143, 45, 0.38);
+  padding: 6px 7px;
+  background: rgba(12, 5, 2, 0.56);
+}
+
+.task-item strong {
+  color: #ffe2b2;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.task-item small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.task-item.running {
+  border-left-color: rgba(255, 207, 118, 0.92);
+  box-shadow: inset 0 0 24px rgba(255, 143, 45, 0.08);
+}
+
+.task-item.done {
+  border-left-color: rgba(255, 181, 72, 0.68);
+}
+
+.task-item.failed {
+  border-left-color: rgba(255, 102, 95, 0.84);
+}
+
+.task-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  gap: 8px;
+}
+
+.task-form input,
+.task-form button {
+  min-height: 32px;
+  border: 1px solid rgba(255, 143, 45, 0.22);
+  background: rgba(8, 4, 2, 0.72);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.task-form input {
+  min-width: 0;
+  padding: 0 9px;
+  outline: none;
+}
+
+.task-form button {
+  cursor: pointer;
 }
 
 .model-head button {
@@ -1008,6 +1122,10 @@ const sphere = document.querySelector(".sphere");
 const chatLog = document.getElementById("chatLog");
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
+const taskList = document.getElementById("taskList");
+const taskForm = document.getElementById("taskForm");
+const taskInput = document.getElementById("taskInput");
+const taskCount = document.getElementById("taskCount");
 const voiceButton = document.getElementById("voiceButton");
 const refreshModelsButton = document.getElementById("refreshModels");
 const plannerModel = document.getElementById("plannerModel");
@@ -1379,6 +1497,42 @@ async function sendChatMessage(event) {
   refreshChat();
 }
 
+async function refreshTasks() {
+  if (!taskList) return;
+  try {
+    const response = await fetch("/tasks", { cache: "no-store" });
+    const payload = await response.json();
+    const tasks = payload.tasks || [];
+    if (taskCount) taskCount.textContent = String(tasks.length);
+    if (!tasks.length) {
+      taskList.innerHTML = `<div class="task-item"><strong>No background tasks yet.</strong><small>Queue one or say "task ..." to Lumen.</small></div>`;
+      return;
+    }
+    taskList.innerHTML = tasks.slice(0, 4).map((task) => {
+      const status = escapeHtml(task.status || "queued");
+      const title = escapeHtml(task.title || task.objective || "Untitled task");
+      const detail = escapeHtml(task.result || task.error || task.objective || "");
+      return `<div class="task-item ${status}"><strong>${title}</strong><small>${status} · ${detail}</small></div>`;
+    }).join("");
+  } catch {
+    taskList.innerHTML = `<div class="task-item failed"><strong>Task engine unavailable.</strong><small>Local endpoint offline.</small></div>`;
+  }
+}
+
+async function submitTask(event) {
+  event.preventDefault();
+  const objective = taskInput.value.trim();
+  if (!objective) return;
+  taskInput.value = "";
+  await fetch("/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ objective })
+  });
+  refreshTasks();
+  refreshChat();
+}
+
 async function refreshModels() {
   if (!plannerModel || !routerModel || !voiceModel || !modelStatus) return;
   try {
@@ -1531,10 +1685,13 @@ function toggleLiveSpeechRecognition(Recognition) {
 refresh();
 refreshChat();
 refreshModels();
+refreshTasks();
 setInterval(refresh, 650);
 setInterval(refreshChat, 1800);
+setInterval(refreshTasks, 2200);
 framework?.addEventListener("pointermove", updatePointer);
 framework?.addEventListener("pointerleave", resetPointer);
+taskForm?.addEventListener("submit", submitTask);
 chatForm?.addEventListener("submit", sendChatMessage);
 refreshModelsButton?.addEventListener("click", refreshModels);
 plannerModel?.addEventListener("change", saveModelSettings);
