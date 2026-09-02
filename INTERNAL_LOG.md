@@ -114,3 +114,12 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Added `/tasks` API support for listing and creating local background tasks.
 - Added a compact task panel to the app window with a task input and recent task statuses.
 - Added chat command routing for `task ...`, `start task ...`, and `start background task ...` so voice/chat can queue work without blocking the console response.
+
+### In-App Approval Queue
+
+- Added an `ApprovalBroker` for pending risky actions with approve/reject/expire states.
+- Wired app-mode and background-task executors to pause on the shared approval broker instead of prompting terminal stdin.
+- Added `/approvals` API support for listing and resolving pending approvals.
+- Added a compact approval panel in the app window with action reason, risk, arguments, and Approve/Reject buttons.
+- Added a deterministic screenshot planner route so screenshot approval requests appear quickly without waiting for the LLM.
+- Smoke-tested by requesting a screenshot, rejecting the pending approval through `/approvals`, and confirming Lumen reported `Cancelled screenshot.`

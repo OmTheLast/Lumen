@@ -81,3 +81,10 @@ def test_reload_tab_simple_plan():
 
     assert plan.actions[0].tool == "browser_reload_tab"
     assert plan.actions[0].args == {"browser": "Safari"}
+
+
+def test_screenshot_simple_plan():
+    plan = make_planner().plan("take a screenshot called approval-smoke")
+
+    assert plan.actions[0].tool == "screenshot"
+    assert plan.actions[0].args == {"filename": "approval-smoke"}

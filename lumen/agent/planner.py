@@ -339,6 +339,24 @@ class Planner:
                 ],
             )
 
+        screenshot_match = re.fullmatch(
+            r"(?:take|capture|grab)\s+(?:a\s+)?screenshot(?:\s+(?:called|named|as)\s+(.+))?",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if screenshot_match:
+            filename = (screenshot_match.group(1) or "lumen-screenshot").strip()
+            return Plan(
+                response=f"Taking a screenshot called {filename}.",
+                actions=[
+                    Action(
+                        tool="screenshot",
+                        args={"filename": filename},
+                        reason="The user asked to capture the screen.",
+                    )
+                ],
+            )
+
         return None
 
     def _looks_like_search(self, value: str) -> bool:

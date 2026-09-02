@@ -9,6 +9,8 @@ from typing import NamedTuple
 
 from lumen.agent.executor import Executor
 from lumen.agent.planner import Planner
+from lumen.agent.safety import SafetyBroker
+from lumen.approvals import ApprovalBroker
 from lumen.config import Config, TASKS_PATH
 from lumen.llm.ollama_client import OllamaClient
 from lumen.tasks import TaskEngine, TaskStore
@@ -26,10 +28,12 @@ from lumen.voice.tts import speak
 def main() -> int:
     no_stdin = _should_run_without_stdin(sys.argv[1:])
     config = Config()
+    approval_broker = ApprovalBroker()
+    safety = SafetyBroker(approval_broker if no_stdin else None, interactive=not no_stdin)
     planner = Planner(config, OllamaClient(config.ollama_url))
-    executor = Executor()
+    executor = Executor(safety)
     task_planner = Planner(config, OllamaClient(config.ollama_url))
-    task_executor = Executor()
+    task_executor = Executor(SafetyBroker(approval_broker, interactive=False))
     presence = PresenceState()
     chat_bridge = ChatBridge()
     task_store = TaskStore(TASKS_PATH)
@@ -38,7 +42,7 @@ def main() -> int:
         lambda objective: process_command(objective, task_planner, task_executor, presence),
     )
     task_engine.start()
-    ui_server = _start_presence_ui(config, presence, chat_bridge, task_engine, task_store)
+    ui_server = _start_presence_ui(config, presence, chat_bridge, task_engine, task_store, approval_broker)
     app_window = _start_app_window(config, ui_server)
     overlay = _start_overlay(config, ui_server)
     stop_event = threading.Event()
@@ -256,6 +260,7 @@ def _start_presence_ui(
     chat_bridge: ChatBridge,
     task_engine: TaskEngine | None = None,
     task_store: TaskStore | None = None,
+    approval_broker: ApprovalBroker | None = None,
 ) -> PresenceServer | None:
     if not config.ui_enabled:
         return None
@@ -268,6 +273,7 @@ def _start_presence_ui(
         config=config,
         task_engine=task_engine,
         task_store=task_store,
+        approval_broker=approval_broker,
     )
     try:
         server.start(open_browser=config.ui_open_browser)

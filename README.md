@@ -46,6 +46,7 @@ assets/lumen-icon.svg
 - First-pass wake-word mode: say "Lumen" before a command in the native app
 - Persistent background task queue
 - Browser tab controls for Safari and Chrome-family browsers
+- In-app approval queue for risky actions
 - Optional live speech recognition and local voice transcription
 - Local command execution with confirmation for riskier tools
 
@@ -178,7 +179,7 @@ take a screenshot called desktop
 
 Browser controls currently use macOS AppleScript. Safari, Google Chrome, Brave Browser, and Microsoft Edge have first-class tab support; macOS may ask for automation permission the first time Lumen controls a browser.
 
-Riskier tools such as shell commands and file writes ask for confirmation.
+Riskier tools such as screenshots, shell commands, and file writes pause for approval. In `Lumen.app`, pending approvals appear in the console with the tool name, risk, reason, arguments, and Approve/Reject controls.
 
 ## Background tasks
 

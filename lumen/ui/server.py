@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
@@ -9,6 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 import webbrowser
 
+from lumen.approvals import ApprovalBroker
 from lumen.config import Config
 from lumen.models import discover_models
 from lumen.tasks import TaskEngine, TaskStore, task_to_dict
@@ -25,12 +27,14 @@ class PresenceServer:
         config: Config | None = None,
         task_engine: TaskEngine | None = None,
         task_store: TaskStore | None = None,
+        approval_broker: ApprovalBroker | None = None,
     ) -> None:
         self.state = state
         self.chat_bridge = chat_bridge or ChatBridge()
         self.config = config or Config()
         self.task_engine = task_engine
         self.task_store = task_store
+        self.approval_broker = approval_broker
         self._config_lock = threading.Lock()
         self.host = host
         self.port = port
@@ -73,6 +77,7 @@ class PresenceServer:
         config_lock = self._config_lock
         task_engine = self.task_engine
         task_store = self.task_store
+        approval_broker = self.approval_broker
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
@@ -98,6 +103,9 @@ class PresenceServer:
                     return
                 if route == "/tasks":
                     self._send_json(task_store.snapshot() if task_store is not None else {"tasks": []})
+                    return
+                if route == "/approvals":
+                    self._send_json(approval_broker.snapshot() if approval_broker is not None else {"approvals": []})
                     return
                 self.send_error(404)
 
@@ -130,6 +138,24 @@ class PresenceServer:
                         return
                     presence.update("acting", "Background task queued.", detail=task.title, transcript=objective)
                     self._send_json({"ok": True, "task": task_to_dict(task)})
+                    return
+                if route == "/approvals":
+                    if approval_broker is None:
+                        self._send_json({"ok": False, "error": "approval broker unavailable"}, status=503)
+                        return
+                    payload = self._read_json()
+                    approval_id = str(payload.get("id") or "").strip()
+                    decision = str(payload.get("decision") or "").strip().lower()
+                    if decision not in {"approved", "approve", "rejected", "reject"}:
+                        self._send_json({"ok": False, "error": "decision must be approved or rejected"}, status=400)
+                        return
+                    approval = approval_broker.resolve(approval_id, approved=decision in {"approved", "approve"})
+                    if approval is None:
+                        self._send_json({"ok": False, "error": "approval not found or already resolved"}, status=404)
+                        return
+                    state = "acting" if approval.status == "approved" else "idle"
+                    presence.update(state, f"Action {approval.status}.", detail=approval.tool)
+                    self._send_json({"ok": True, "approval": asdict(approval)})
                     return
                 if route == "/settings":
                     payload = self._read_json()
@@ -246,6 +272,7 @@ INDEX_HTML = """<!doctype html>
           <strong>Chat / voice</strong>
         </div>
         <div id="chatLog" class="chat-log"></div>
+        <section id="approvalPanel" class="approval-panel" aria-label="Pending approvals"></section>
         <section class="task-panel" aria-label="Background tasks">
           <div class="task-head">
             <span>background tasks</span>
@@ -700,6 +727,7 @@ h1 {
   max-height: 166px;
 }
 
+.approval-panel,
 .model-panel,
 .task-panel {
   display: grid;
@@ -707,6 +735,58 @@ h1 {
   padding: 9px;
   border: 1px solid rgba(255, 143, 45, 0.16);
   background: rgba(8, 4, 2, 0.44);
+}
+
+.approval-panel:empty {
+  display: none;
+}
+
+.approval-item {
+  display: grid;
+  gap: 7px;
+  border-left: 2px solid rgba(255, 102, 95, 0.92);
+  padding: 7px;
+  background: rgba(58, 13, 6, 0.28);
+}
+
+.approval-item strong {
+  color: #ffe2b2;
+  font-size: 12px;
+}
+
+.approval-item small,
+.approval-item code {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.approval-item code {
+  display: block;
+  max-height: 48px;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.approval-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.approval-actions button {
+  min-height: 30px;
+  border: 1px solid rgba(255, 143, 45, 0.28);
+  background: rgba(8, 4, 2, 0.72);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.approval-actions button[data-decision="approved"] {
+  border-color: rgba(255, 204, 116, 0.74);
+  color: var(--amber);
 }
 
 .model-head,
@@ -1122,6 +1202,7 @@ const sphere = document.querySelector(".sphere");
 const chatLog = document.getElementById("chatLog");
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
+const approvalPanel = document.getElementById("approvalPanel");
 const taskList = document.getElementById("taskList");
 const taskForm = document.getElementById("taskForm");
 const taskInput = document.getElementById("taskInput");
@@ -1533,6 +1614,44 @@ async function submitTask(event) {
   refreshChat();
 }
 
+async function refreshApprovals() {
+  if (!approvalPanel) return;
+  try {
+    const response = await fetch("/approvals", { cache: "no-store" });
+    const payload = await response.json();
+    const pending = (payload.approvals || []).filter((approval) => approval.status === "pending");
+    approvalPanel.innerHTML = pending.slice(0, 3).map((approval) => {
+      const id = escapeHtml(approval.id || "");
+      const tool = escapeHtml(approval.tool || "unknown tool");
+      const risk = escapeHtml(approval.risk || "risk");
+      const reason = escapeHtml(approval.reason || approval.risk_reason || "");
+      const args = escapeHtml(JSON.stringify(approval.args || {}, null, 2));
+      return `<div class="approval-item" data-id="${id}">
+        <strong>${tool} · ${risk}</strong>
+        <small>${reason}</small>
+        <code>${args}</code>
+        <div class="approval-actions">
+          <button type="button" data-decision="rejected" data-id="${id}">Reject</button>
+          <button type="button" data-decision="approved" data-id="${id}">Approve</button>
+        </div>
+      </div>`;
+    }).join("");
+  } catch {
+    approvalPanel.innerHTML = "";
+  }
+}
+
+async function resolveApproval(id, decision) {
+  await fetch("/approvals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, decision })
+  });
+  refreshApprovals();
+  refreshChat();
+  refreshTasks();
+}
+
 async function refreshModels() {
   if (!plannerModel || !routerModel || !voiceModel || !modelStatus) return;
   try {
@@ -1686,11 +1805,20 @@ refresh();
 refreshChat();
 refreshModels();
 refreshTasks();
+refreshApprovals();
 setInterval(refresh, 650);
 setInterval(refreshChat, 1800);
 setInterval(refreshTasks, 2200);
+setInterval(refreshApprovals, 1200);
 framework?.addEventListener("pointermove", updatePointer);
 framework?.addEventListener("pointerleave", resetPointer);
+approvalPanel?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement)) return;
+  const id = target.dataset.id || "";
+  const decision = target.dataset.decision || "";
+  if (id && decision) resolveApproval(id, decision);
+});
 taskForm?.addEventListener("submit", submitTask);
 chatForm?.addEventListener("submit", sendChatMessage);
 refreshModelsButton?.addEventListener("click", refreshModels);
