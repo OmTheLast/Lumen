@@ -123,3 +123,27 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Added a compact approval panel in the app window with action reason, risk, arguments, and Approve/Reject buttons.
 - Added a deterministic screenshot planner route so screenshot approval requests appear quickly without waiting for the LLM.
 - Smoke-tested by requesting a screenshot, rejecting the pending approval through `/approvals`, and confirming Lumen reported `Cancelled screenshot.`
+
+## 2026-09-23
+
+### Distribution And Startup Reliability
+
+- Raised the package and native app version to `0.4.0` for the first Homebrew release.
+- Added `https://lumen.ompatnaik.com` to the public project presentation.
+- Captured the real native app window at `assets/lumen-app.jpg` for the GitHub README.
+- Added a Homebrew installation path that packages Lumen without model weights.
+- Changed the native launcher to find `uv` through `LUMEN_UV_PATH`, `~/.local/bin`, Homebrew, and the inherited `PATH`.
+- Added support for a packaged Python runtime so Homebrew installs do not require `uv` at launch.
+- Added a visible native startup-error page with the backend log path.
+- Fixed native app port drift: the wrapper now reserves a free localhost port and passes the same port to the backend, window, voice bridge, and overlay.
+
+### Verification
+
+- Swift native window and overlay helpers compile.
+- Python suite passes: 33 tests.
+- Finder-style launch found `/Users/ompatnaik/.local/bin/uv` and started Lumen on a reserved port while port 8765 was occupied by another project.
+- Native app state and screenshot were verified from the running `Lumen.app` window.
+
+### Next Action
+
+- Tag release `v0.4.0`, calculate the release archive checksum, add and test `Formula/lumen.rb`, then push the formula and set the GitHub repository homepage.

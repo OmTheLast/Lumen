@@ -7,6 +7,12 @@
 <p align="center">A local-first macOS desktop agent that runs on your machine, opens its own app window, and uses local models for planning and voice.</p>
 
 <p align="center">
+  <a href="https://lumen.ompatnaik.com">lumen.ompatnaik.com</a> ·
+  <a href="#install-with-homebrew">Install</a> ·
+  <a href="#current-state">Current state</a>
+</p>
+
+<p align="center">
   <strong>Native app window</strong> ·
   <strong>Local model detection</strong> ·
   <strong>Desktop orb presence</strong> ·
@@ -14,6 +20,10 @@
 </p>
 
 Lumen is an experimental desktop agent framework. It starts a local server on your Mac, renders the interface inside a native `Lumen.app` window, and can use local tools to open apps, open URLs, search the web, take screenshots, and handle approved file or shell actions.
+
+<p align="center">
+  <img src="assets/lumen-app.jpg" width="900" alt="Lumen native macOS app showing its interactive orb, local models, background tasks, and chat controls">
+</p>
 
 > [!IMPORTANT]
 > Lumen is an early prototype for Apple Silicon Macs. It can open applications, use the browser, take screenshots, and request shell or file operations. Review confirmation prompts before approving actions.
@@ -50,7 +60,26 @@ assets/lumen-icon.svg
 - Optional live speech recognition and local voice transcription
 - Local command execution with confirmation for riskier tools
 
-## Setup guide
+## Install with Homebrew
+
+The Homebrew formula installs Lumen's native app and Python runtime. Models remain separate and local to your machine.
+
+```sh
+brew install --formula https://raw.githubusercontent.com/OmTheLast/Lumen/main/Formula/lumen.rb
+lumen-app
+```
+
+You still need a local model provider such as Ollama and at least one chat model:
+
+```sh
+brew install ollama
+ollama serve
+ollama pull qwen3:latest
+```
+
+The formula installs the app bundle inside Homebrew's prefix and provides `lumen-app` to open it. It does not download model weights, send prompts to a hosted API, or require `uv` at runtime.
+
+## Install from source
 
 ### 1. Install the prerequisites
 
@@ -94,7 +123,7 @@ scripts/build_macos_app.sh --install-user
 open ~/Applications/Lumen.app
 ```
 
-The app is a local, repo-backed development build—not a signed or notarized standalone download. It still needs this checkout, `uv`, and a separately installed local model.
+The source-built app is a local development build, not a signed or notarized download. It needs this checkout and a separately installed local model. Its launcher detects `uv` in `~/.local/bin`, Homebrew, or a path supplied through `LUMEN_UV_PATH`.
 
 ## Configuration
 
@@ -136,6 +165,8 @@ The app wrapper starts Lumen in app mode, opens the native Lumen window, and wri
 ```text
 ~/Library/Logs/Lumen/lumen.log
 ```
+
+If the backend cannot start, the native window now shows the startup error and this log path. Homebrew builds launch their packaged Python directly; source builds find `uv` even when Finder does not inherit your shell `PATH`.
 
 Lumen starts a local presence server at `http://127.0.0.1:8765`. When launched from `Lumen.app`, that local interface opens inside a native macOS window instead of a browser tab. The interface shows Lumen's current state and a bottom-right icon that animates while it listens, thinks, acts, or speaks.
 

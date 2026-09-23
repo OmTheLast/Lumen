@@ -23,6 +23,7 @@ class PresenceServer:
         state: PresenceState,
         host: str = "127.0.0.1",
         port: int = 8765,
+        strict_port: bool = False,
         chat_bridge: ChatBridge | None = None,
         config: Config | None = None,
         task_engine: TaskEngine | None = None,
@@ -38,6 +39,7 @@ class PresenceServer:
         self._config_lock = threading.Lock()
         self.host = host
         self.port = port
+        self.strict_port = strict_port
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -48,7 +50,8 @@ class PresenceServer:
     def start(self, *, open_browser: bool = True) -> str:
         handler = self._make_handler()
         last_error: OSError | None = None
-        for candidate in range(self.port, self.port + 20):
+        candidate_ports = [self.port] if self.strict_port else range(self.port, self.port + 20)
+        for candidate in candidate_ports:
             try:
                 self._server = ThreadingHTTPServer((self.host, candidate), handler)
                 self.port = candidate

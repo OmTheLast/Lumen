@@ -5,17 +5,21 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Lumen"
 APP_DIR="$ROOT_DIR/dist/macos/$APP_NAME.app"
 INSTALL_TARGET=""
+RUNTIME_ROOT="$ROOT_DIR"
+PYTHON_PATH=""
 
 usage() {
   cat <<'USAGE'
 Build the Lumen macOS app wrapper.
 
 Usage:
-  scripts/build_macos_app.sh [--install-user|--install-system]
+  scripts/build_macos_app.sh [--install-user|--install-system] [--runtime-root PATH] [--python-path PATH]
 
 Options:
   --install-user    Copy Lumen.app to ~/Applications
   --install-system  Copy Lumen.app to /Applications
+  --runtime-root    Runtime working directory embedded in the app (default: repository root)
+  --python-path     Python executable embedded in the app; bypasses uv at launch
 USAGE
 }
 
@@ -26,6 +30,16 @@ while [ "$#" -gt 0 ]; do
       ;;
     --install-system)
       INSTALL_TARGET="/Applications"
+      ;;
+    --runtime-root)
+      [ "$#" -ge 2 ] || { echo "--runtime-root needs a path" >&2; exit 2; }
+      RUNTIME_ROOT="$2"
+      shift
+      ;;
+    --python-path)
+      [ "$#" -ge 2 ] || { echo "--python-path needs a path" >&2; exit 2; }
+      PYTHON_PATH="$2"
+      shift
       ;;
     -h|--help)
       usage
@@ -88,9 +102,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key>
   <string>com.ompatnaik.lumen</string>
   <key>CFBundleVersion</key>
-  <string>0.3.0</string>
+  <string>0.4.0</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.3.0</string>
+  <string>0.4.0</string>
   <key>CFBundleExecutable</key>
   <string>Lumen</string>
   <key>CFBundleIconFile</key>
@@ -110,20 +124,30 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 PLIST
 
 swiftc "$ROOT_DIR/lumen/ui/macos_window.swift" -O -o "$APP_DIR/Contents/MacOS/Lumen"
-printf '%s\n' "$ROOT_DIR" > "$APP_DIR/Contents/Resources/repo-path.txt"
+printf '%s\n' "$RUNTIME_ROOT" > "$APP_DIR/Contents/Resources/repo-path.txt"
+if [ -n "$PYTHON_PATH" ]; then
+  if [ ! -x "$PYTHON_PATH" ]; then
+    echo "Python executable not found: $PYTHON_PATH" >&2
+    exit 1
+  fi
+  printf '%s\n' "$PYTHON_PATH" > "$APP_DIR/Contents/Resources/python-path.txt"
+else
+  rm -f "$APP_DIR/Contents/Resources/python-path.txt"
+fi
 
 cat > "$APP_DIR/Contents/Resources/README.txt" <<README
 Lumen.app is the native window for the local Lumen repository.
 
 Repository:
-$ROOT_DIR
+$RUNTIME_ROOT
 
 Logs:
 ~/Library/Logs/Lumen/lumen.log
 
 The app starts Lumen in app mode, opens the native Lumen window, and keeps the
 agent running without terminal stdin. The interface is served locally by the
-embedded server.
+embedded server. Development builds find uv in common Homebrew locations and
+~/.local/bin; packaged builds can use an embedded Python runtime path.
 README
 
 echo "Built $APP_DIR"

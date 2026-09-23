@@ -269,6 +269,7 @@ def _start_presence_ui(
         presence,
         host=config.ui_host,
         port=config.ui_port,
+        strict_port=config.ui_strict_port,
         chat_bridge=chat_bridge,
         config=config,
         task_engine=task_engine,

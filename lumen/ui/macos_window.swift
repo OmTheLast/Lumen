@@ -1,7 +1,36 @@
 import Cocoa
 import AVFoundation
+import Darwin
 import Speech
 import WebKit
+
+func availableLocalPort() -> Int? {
+    let socketDescriptor = socket(AF_INET, SOCK_STREAM, 0)
+    guard socketDescriptor >= 0 else { return nil }
+    defer { Darwin.close(socketDescriptor) }
+
+    var address = sockaddr_in()
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_port = 0
+    address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+
+    let bindResult = withUnsafePointer(to: &address) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            bind(socketDescriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    guard bindResult == 0 else { return nil }
+
+    var addressLength = socklen_t(MemoryLayout<sockaddr_in>.size)
+    let nameResult = withUnsafeMutablePointer(to: &address) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            getsockname(socketDescriptor, $0, &addressLength)
+        }
+    }
+    guard nameResult == 0 else { return nil }
+    return Int(UInt16(bigEndian: address.sin_port))
+}
 
 final class WindowDelegate: NSObject, NSWindowDelegate {
     private let backend: BackendController?
@@ -18,14 +47,25 @@ final class WindowDelegate: NSObject, NSWindowDelegate {
 
 final class BackendController {
     private var process: Process?
+    private var startupError: String?
+    let baseURL: URL
+    private let logURL = FileManager.default
+        .homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Logs/Lumen/lumen.log")
 
-    func startIfNeeded() {
-        guard process == nil else { return }
-        guard let repoURL = findRepositoryURL() else { return }
+    init() {
+        let port = availableLocalPort() ?? 8765
+        baseURL = URL(string: "http://127.0.0.1:\(port)")!
+    }
 
-        let logURL = FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/Lumen/lumen.log")
+    @discardableResult
+    func startIfNeeded() -> Bool {
+        guard process == nil else { return true }
+        guard let repoURL = findRepositoryURL() else {
+            startupError = "Lumen could not locate its runtime files. Reinstall the app or set LUMEN_REPO_DIR."
+            return false
+        }
+
         try? FileManager.default.createDirectory(
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -38,13 +78,33 @@ final class BackendController {
         logHandle?.seekToEndOfFile()
 
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        proc.arguments = ["uv", "run", "python", "-m", "lumen.main", "--app"]
+        if let pythonURL = findConfiguredPythonURL() {
+            proc.executableURL = pythonURL
+            proc.arguments = ["-m", "lumen.main", "--app"]
+        } else if let uvURL = findExecutable(named: "uv") {
+            proc.executableURL = uvURL
+            proc.arguments = ["run", "python", "-m", "lumen.main", "--app"]
+        } else {
+            startupError = "Lumen could not find uv. Install it with Homebrew or place it at ~/.local/bin/uv."
+            return false
+        }
         proc.currentDirectoryURL = repoURL
 
         var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (environment["PATH"] ?? "")
+        let localBin = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin").path
+        environment["PATH"] = [
+            localBin,
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+            environment["PATH"] ?? "",
+        ].joined(separator: ":")
         environment["LUMEN_REPO_DIR"] = repoURL.path
+        environment["LUMEN_UI_PORT"] = String(baseURL.port ?? 8765)
+        environment["LUMEN_UI_STRICT_PORT"] = "1"
         environment["LUMEN_UI_OPEN_BROWSER"] = environment["LUMEN_UI_OPEN_BROWSER"] ?? "0"
         environment["LUMEN_APP_WINDOW_ENABLED"] = "0"
         environment["LUMEN_OVERLAY_ENABLED"] = environment["LUMEN_OVERLAY_ENABLED"] ?? "1"
@@ -55,9 +115,27 @@ final class BackendController {
         do {
             try proc.run()
             process = proc
+            startupError = nil
+            return true
         } catch {
             process = nil
+            startupError = "Lumen could not start its local backend: \(error.localizedDescription)"
+            return false
         }
+    }
+
+    func diagnosticMessage() -> String {
+        if let startupError {
+            return startupError
+        }
+        if let process, !process.isRunning {
+            return "Lumen's local backend exited with status \(process.terminationStatus)."
+        }
+        return "Lumen's local backend did not become ready in time."
+    }
+
+    var logPath: String {
+        logURL.path
     }
 
     func stop() {
@@ -90,6 +168,53 @@ final class BackendController {
         }
 
         return nil
+    }
+
+    private func findConfiguredPythonURL() -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        if let configured = env["LUMEN_PYTHON_PATH"], let url = executableURL(at: configured) {
+            return url
+        }
+
+        if
+            let resourceURL = Bundle.main.resourceURL,
+            let contents = try? String(contentsOf: resourceURL.appendingPathComponent("python-path.txt"), encoding: .utf8),
+            let url = executableURL(at: contents.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
+            return url
+        }
+
+        return nil
+    }
+
+    private func findExecutable(named name: String) -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        if name == "uv", let configured = env["LUMEN_UV_PATH"], let url = executableURL(at: configured) {
+            return url
+        }
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let candidates = [
+            home.appendingPathComponent(".local/bin/\(name)").path,
+            "/opt/homebrew/bin/\(name)",
+            "/usr/local/bin/\(name)",
+        ] + (env["PATH"] ?? "")
+            .split(separator: ":")
+            .map { "\($0)/\(name)" }
+
+        for candidate in candidates {
+            if let url = executableURL(at: candidate) {
+                return url
+            }
+        }
+        return nil
+    }
+
+    private func executableURL(at path: String) -> URL? {
+        guard !path.isEmpty else { return nil }
+        let expanded = NSString(string: path).expandingTildeInPath
+        guard FileManager.default.isExecutableFile(atPath: expanded) else { return nil }
+        return URL(fileURLWithPath: expanded)
     }
 }
 
@@ -380,25 +505,66 @@ func hasURLArgument() -> Bool {
     CommandLine.arguments.contains("--url")
 }
 
-func loadWhenReady(webView: WKWebView, url: URL, remainingAttempts: Int = 40) {
+func escapedHTML(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "&", with: "&amp;")
+        .replacingOccurrences(of: "<", with: "&lt;")
+        .replacingOccurrences(of: ">", with: "&gt;")
+        .replacingOccurrences(of: "\"", with: "&quot;")
+}
+
+func startupFailureHTML(message: String, logPath: String) -> String {
+    """
+    <!doctype html>
+    <html lang="en">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #090604; color: #fff3e4; }
+      main { width: min(620px, calc(100vw - 64px)); border-left: 2px solid #ff9418; padding: 12px 0 14px 28px; }
+      p { color: #d7b58c; line-height: 1.55; }
+      code { display: block; margin-top: 18px; padding: 12px 14px; background: #160c06; border: 1px solid #63320d; color: #ffc36f; user-select: all; }
+    </style>
+    <main>
+      <small>LOCAL BACKEND</small>
+      <h1>Lumen could not start.</h1>
+      <p>\(escapedHTML(message))</p>
+      <p>Startup details are in:</p>
+      <code>\(escapedHTML(logPath))</code>
+    </main>
+    </html>
+    """
+}
+
+func loadWhenReady(webView: WKWebView, url: URL, backend: BackendController?, remainingAttempts: Int = 40) {
     var request = URLRequest(url: url.appendingPathComponent("state"))
     request.timeoutInterval = 0.4
     URLSession.shared.dataTask(with: request) { _, response, _ in
         let ready = (response as? HTTPURLResponse)?.statusCode == 200
         DispatchQueue.main.async {
-            if ready || remainingAttempts <= 0 {
+            if ready {
                 webView.load(URLRequest(url: url))
+            } else if remainingAttempts <= 0 {
+                if let backend {
+                    webView.loadHTMLString(
+                        startupFailureHTML(message: backend.diagnosticMessage(), logPath: backend.logPath),
+                        baseURL: nil
+                    )
+                } else {
+                    webView.load(URLRequest(url: url))
+                }
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    loadWhenReady(webView: webView, url: url, remainingAttempts: remainingAttempts - 1)
+                    loadWhenReady(webView: webView, url: url, backend: backend, remainingAttempts: remainingAttempts - 1)
                 }
             }
         }
     }.resume()
 }
 
-let url = parseURL()
 let backend = hasURLArgument() ? nil : BackendController()
+let url = backend?.baseURL ?? parseURL()
 backend?.startIfNeeded()
 
 let app = NSApplication.shared
@@ -458,5 +624,5 @@ window.contentView = webView
 window.center()
 window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
-loadWhenReady(webView: webView, url: url)
+loadWhenReady(webView: webView, url: url, backend: backend)
 app.run()
