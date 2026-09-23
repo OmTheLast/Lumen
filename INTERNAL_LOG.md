@@ -143,10 +143,16 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 - Python suite passes: 33 tests.
 - Finder-style launch found `/Users/ompatnaik/.local/bin/uv` and started Lumen on a reserved port while port 8765 was occupied by another project.
 - Native app state and screenshot were verified from the running `Lumen.app` window.
+- Homebrew installed `lumen-local 0.4.0` from the public tap: 129 files and approximately 3 MB, excluding the Homebrew Python dependency and model weights.
+- `brew test omthelast/lumen/lumen-local` passes.
+- The Cellar-installed app launched with Homebrew Python directly, detected the local Ollama models, and served healthy state/settings endpoints on its reserved port without a `uv` process or development checkout.
+
+### Packaging Notes
+
+- Release `v0.4.0` is tagged and published. Its source checksum is recorded in `Formula/lumen-local.rb`.
+- Homebrew 7 rejects direct path formulas, so the existing repository is registered as the custom `OmTheLast/lumen` tap instead of creating a second repository.
+- The first Cellar builds exposed a Homebrew Python/pip regression on macOS 26.2: `platform.mac_ver()` returned an empty version and broke pip's truststore and wheel-tag logic. The formula avoids pip entirely, installs the five checksum-verified pure-Python runtime dependencies directly, and launches them with Homebrew Python 3.13.
 
 ### Next Action
 
-- Release `v0.4.0` was tagged and published. Its source checksum is recorded in `Formula/lumen-local.rb`.
-- Homebrew 7 rejected direct path formulas, so the existing repository is used as the custom `OmTheLast/lumen` tap instead of creating a second repository.
-- The first Cellar builds exposed a Homebrew Python/pip regression on macOS 26.2: `platform.mac_ver()` returned an empty version and broke pip's truststore and wheel-tag logic. The formula avoids pip entirely, installs the five checksum-verified pure-Python runtime dependencies directly, and launches them with Homebrew Python 3.13.
-- Push and register the tap, test `brew install lumen-local` end to end, then set the GitHub repository homepage.
+- Continue with the dedicated local wake-word engine; distribution and `uv` startup reliability are now verified.
