@@ -35,6 +35,11 @@ class LumenLocal < Formula
   end
 
   def install
+    python = formula_opt_bin("python@3.13")/"python3.13"
+    system "scripts/build_macos_app.sh",
+           "--runtime-root", libexec,
+           "--python-path", python
+
     libexec.install "lumen"
     resource("certifi").stage { libexec.install "certifi" }
     resource("charset-normalizer").stage { libexec.install "src/charset_normalizer" }
@@ -42,11 +47,6 @@ class LumenLocal < Formula
     resource("requests").stage { libexec.install "src/requests" }
     resource("urllib3").stage { libexec.install "src/urllib3" }
 
-    python = formula_opt_bin("python@3.13")/"python3.13"
-
-    system "scripts/build_macos_app.sh",
-           "--runtime-root", libexec,
-           "--python-path", python
     prefix.install "dist/macos/Lumen.app"
 
     (bin/"lumen").write <<~SH
