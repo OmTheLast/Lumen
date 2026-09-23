@@ -1,6 +1,4 @@
 class LumenLocal < Formula
-  include Language::Python::Virtualenv
-
   desc "Local-first macOS desktop agent powered by local models"
   homepage "https://lumen.ompatnaik.com"
   url "https://github.com/OmTheLast/Lumen/archive/refs/tags/v0.4.0.tar.gz"
@@ -37,12 +35,25 @@ class LumenLocal < Formula
   end
 
   def install
-    virtualenv_install_with_resources(using: "python@3.13")
+    libexec.install "lumen"
+    resource("certifi").stage { libexec.install "certifi" }
+    resource("charset-normalizer").stage { libexec.install "src/charset_normalizer" }
+    resource("idna").stage { libexec.install "idna" }
+    resource("requests").stage { libexec.install "src/requests" }
+    resource("urllib3").stage { libexec.install "src/urllib3" }
+
+    python = formula_opt_bin("python@3.13")/"python3.13"
 
     system "scripts/build_macos_app.sh",
            "--runtime-root", libexec,
-           "--python-path", libexec/"bin/python"
+           "--python-path", python
     prefix.install "dist/macos/Lumen.app"
+
+    (bin/"lumen").write <<~SH
+      #!/bin/bash
+      cd "#{opt_libexec}"
+      exec "#{formula_opt_bin("python@3.13")}/python3.13" -m lumen.main "$@"
+    SH
 
     (bin/"lumen-app").write <<~SH
       #!/bin/bash
@@ -66,7 +77,8 @@ class LumenLocal < Formula
   end
 
   test do
-    system libexec/"bin/python", "-c", "import lumen"
+    system formula_opt_bin("python@3.13")/"python3.13", "-c",
+           "import sys; sys.path.insert(0, '#{libexec}'); import lumen, requests"
     assert_path_exists prefix/"Lumen.app/Contents/MacOS/Lumen"
   end
 end
