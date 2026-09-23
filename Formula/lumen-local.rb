@@ -9,7 +9,7 @@ class LumenLocal < Formula
   head "https://github.com/OmTheLast/Lumen.git", branch: "main"
 
   depends_on :macos
-  depends_on "python@3.14"
+  depends_on "python@3.13"
 
   resource "certifi" do
     url "https://files.pythonhosted.org/packages/c9/c7/424b75da314c1045981bd9777432fad05a9e0c69daa4ed7e308bbaffe405/certifi-2026.6.17.tar.gz"
@@ -37,9 +37,7 @@ class LumenLocal < Formula
   end
 
   def install
-    # pip's truststore backend can misread macOS 26 inside Homebrew's sandbox.
-    ENV["PIP_USE_DEPRECATED"] = "legacy-certs"
-    virtualenv_install_with_resources(using: "python@3.14")
+    virtualenv_install_with_resources(using: "python@3.13")
 
     system "scripts/build_macos_app.sh",
            "--runtime-root", libexec,
