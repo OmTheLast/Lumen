@@ -146,4 +146,6 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 
 ### Next Action
 
-- Tag release `v0.4.0`, calculate the release archive checksum, add and test `Formula/lumen.rb`, then push the formula and set the GitHub repository homepage.
+- Release `v0.4.0` was tagged and published. Its source checksum is recorded in `Formula/lumen-local.rb`.
+- Homebrew 7 rejected direct path formulas, so the existing repository is used as the custom `OmTheLast/lumen` tap instead of creating a second repository.
+- Push and register the tap, test `brew install lumen-local` end to end, then set the GitHub repository homepage.

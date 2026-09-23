@@ -65,7 +65,8 @@ assets/lumen-icon.svg
 The Homebrew formula installs Lumen's native app and Python runtime. Models remain separate and local to your machine.
 
 ```sh
-brew install --formula https://raw.githubusercontent.com/OmTheLast/Lumen/main/Formula/lumen.rb
+brew tap OmTheLast/lumen https://github.com/OmTheLast/Lumen.git
+brew install lumen-local
 lumen-app
 ```
 
