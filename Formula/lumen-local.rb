@@ -37,6 +37,8 @@ class LumenLocal < Formula
   end
 
   def install
+    # pip's truststore backend can misread macOS 26 inside Homebrew's sandbox.
+    ENV["PIP_USE_DEPRECATED"] = "legacy-certs"
     virtualenv_install_with_resources(using: "python@3.14")
 
     system "scripts/build_macos_app.sh",

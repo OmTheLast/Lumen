@@ -148,4 +148,5 @@ This is a repo-backed app wrapper, not a fully self-contained signed/notarized `
 
 - Release `v0.4.0` was tagged and published. Its source checksum is recorded in `Formula/lumen-local.rb`.
 - Homebrew 7 rejected direct path formulas, so the existing repository is used as the custom `OmTheLast/lumen` tap instead of creating a second repository.
+- The first Cellar build exposed a pip truststore failure on macOS 26.2; the formula now uses pip's supported legacy certificate path while installing already-declared Python resources.
 - Push and register the tap, test `brew install lumen-local` end to end, then set the GitHub repository homepage.
