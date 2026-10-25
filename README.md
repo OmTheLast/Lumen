@@ -1,5 +1,7 @@
 <h1 align="center">Lumen</h1>
 
+[Portfolio case study](https://ompatnaik.com/projects/lumen/) · [Project & installation site](https://lumen.ompatnaik.com/)
+
 **Run a desktop agent on your Mac with local model discovery, optional voice, and approval prompts for tool actions.**
 
 [Demo or published artifacts](https://lumen.ompatnaik.com)
